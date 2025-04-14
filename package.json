@@ -1,0 +1,25 @@
+{
+  "private": true,
+  "name": "@mcp-auth/root",
+  "version": "0.0.0",
+  "description": "Connect your MCP server to any eligible OAuth 2 or OpenID Connect provider",
+  "type": "module",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.0.0 || ^23.0.0"
+  },
+  "packageManager": "pnpm@10.8.0",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "10.8.0",
+      "onFail": "error"
+    }
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.28.1",
+    "typescript": "^5.8.3"
+  }
+}

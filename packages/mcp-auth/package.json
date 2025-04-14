@@ -1,0 +1,56 @@
+{
+  "name": "mcp-auth",
+  "version": "0.0.0",
+  "author": "Silverhand Inc. <contact@silverhand.io>",
+  "description": "Connect your MCP server to any eligible OAuth 2 or OpenID Connect provider",
+  "keywords": [
+    "modelcontextprotocol",
+    "mcp",
+    "oauth",
+    "openid",
+    "connect",
+    "oidc"
+  ],
+  "type": "module",
+  "main": "./lib/index.js",
+  "module": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    "types": "./lib/index.d.ts",
+    "import": "./lib/index.js",
+    "require": "./lib/index.js",
+    "default": "./lib/index.js",
+    "svelte": "./lib/index.js"
+  },
+  "files": [
+    "lib"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcp-auth/js.git",
+    "directory": "packages/mcp-auth"
+  },
+  "scripts": {
+    "build": "rm -rf lib/ && tsc -p tsconfig.build.json",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.0.0 || ^23.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@silverhand/eslint-config": "^6.0.1",
+    "@silverhand/ts-config": "^6.0.0",
+    "@types/node": "^20.17.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  },
+  "eslintConfig": {
+    "extends": "@silverhand"
+  },
+  "prettier": "@silverhand/eslint-config/.prettierrc"
+}
