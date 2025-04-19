@@ -42,6 +42,7 @@
     "access": "public"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.1",
     "@silverhand/eslint-config": "^6.0.1",
     "@silverhand/ts-config": "^6.0.0",
     "@types/cors": "^2.8.17",
@@ -53,12 +54,9 @@
     "prettier": "^3.5.3",
     "typescript": "^5.8.3"
   },
-  "eslintConfig": {
-    "extends": "@silverhand"
-  },
-  "prettier": "@silverhand/eslint-config/.prettierrc",
   "dependencies": {
     "@silverhand/essentials": "^2.9.2",
+    "camelcase-keys": "^9.1.3",
     "cors": "^2.8.5",
     "snakecase-keys": "^8.0.1",
     "zod": "^3.24.3"
@@ -68,5 +66,9 @@
   },
   "optionalDependencies": {
     "http-proxy-middleware": "^3.0.5"
-  }
+  },
+  "eslintConfig": {
+    "extends": "@silverhand"
+  },
+  "prettier": "@silverhand/eslint-config/.prettierrc"
 }

@@ -1,5 +1,3 @@
-export const metadataDiscoveryPath = '/.well-known/oauth-authorization-server';
-
 /**
  * Default fallback paths defined by MCP 2025-03-26 (except for revocation).
  *

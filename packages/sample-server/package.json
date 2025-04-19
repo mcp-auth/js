@@ -1,0 +1,43 @@
+{
+  "private": true,
+  "name": "@mcp-auth/sample-server",
+  "version": "0.0.0",
+  "author": "Silverhand Inc. <contact@silverhand.io>",
+  "description": "A sample server for mcp-auth",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mcp-auth/js.git",
+    "directory": "packages/sample-server"
+  },
+  "scripts": {
+    "build": "rm -rf dist/ && tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.0.0 || ^23.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.1",
+    "dotenv": "^16.5.0",
+    "express": "5.0.1",
+    "http-proxy-middleware": "^3.0.5",
+    "mcp-auth": "link:../mcp-auth",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@silverhand/eslint-config": "^6.0.1",
+    "@silverhand/ts-config": "^6.0.0",
+    "@types/express": "^5.0.1",
+    "@types/node": "^20.17.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  },
+  "eslintConfig": {
+    "extends": "@silverhand"
+  },
+  "prettier": "@silverhand/eslint-config/.prettierrc"
+}

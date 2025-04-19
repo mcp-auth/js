@@ -14,7 +14,25 @@ export class MCPAuthConfigError extends MCPAuthError {
   }
 }
 
-export type MCPAuthBearerAuthErrorCode =
+export type AuthServerErrorCode = 'invalid_server_metadata' | 'invalid_server_config';
+
+export const authServerErrorDescription: Readonly<Record<AuthServerErrorCode, string>> =
+  Object.freeze({
+    invalid_server_metadata: 'The server metadata is invalid or malformed.',
+    invalid_server_config: 'The server configuration does not match the MCP specification.',
+  });
+
+export class MCPAuthAuthServerError extends MCPAuthError {
+  constructor(
+    public readonly code: AuthServerErrorCode,
+    public readonly details?: unknown
+  ) {
+    super(authServerErrorDescription[code] || 'An error occurred with the authorization server.');
+    this.name = 'MCPAuthAuthServerError';
+  }
+}
+
+export type BearerAuthErrorCode =
   | 'missing_auth_header'
   | 'invalid_auth_header_format'
   | 'missing_bearer_token'
@@ -23,7 +41,7 @@ export type MCPAuthBearerAuthErrorCode =
   | 'missing_required_scopes'
   | 'invalid_token';
 
-export const bearerAuthErrorDescription: Readonly<Record<MCPAuthBearerAuthErrorCode, string>> =
+export const bearerAuthErrorDescription: Readonly<Record<BearerAuthErrorCode, string>> =
   Object.freeze({
     missing_auth_header: 'Missing `Authorization` header. Please provide a valid bearer token.',
     invalid_auth_header_format: 'Invalid `Authorization` header format. Expected "Bearer <token>".',
@@ -44,7 +62,7 @@ export type MCPAuthBearerAuthErrorDetails = {
 
 export class MCPAuthBearerAuthError extends MCPAuthError {
   constructor(
-    public readonly code: MCPAuthBearerAuthErrorCode,
+    public readonly code: BearerAuthErrorCode,
     public readonly details?: MCPAuthBearerAuthErrorDetails
   ) {
     super(bearerAuthErrorDescription[code] || 'An error occurred during bearer authentication.');

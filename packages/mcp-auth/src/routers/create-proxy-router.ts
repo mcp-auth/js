@@ -4,8 +4,9 @@ import { Router } from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import snakecaseKeys from 'snakecase-keys';
 
-import { defaultPaths, metadataDiscoveryPath } from '../consts/mcp';
-import { type AuthorizationServerMetadata } from '../oauth-types';
+import { defaultPaths } from '../consts/mcp.js';
+import { type CamelCaseAuthorizationServerMetadata } from '../types/oauth.js';
+import { serverMetadataPaths } from '../utils/fetch-server-config.js';
 
 export type ProxyModeOverrides = Partial<{
   authorizationPath: string;
@@ -16,7 +17,7 @@ export type ProxyModeOverrides = Partial<{
 
 export type ProxyModeConfig = {
   baseUrl: string;
-  metadata: AuthorizationServerMetadata;
+  metadata: CamelCaseAuthorizationServerMetadata;
   overrides?: ProxyModeOverrides;
 };
 
@@ -39,7 +40,7 @@ export const createProxyRouter = ({ baseUrl, metadata, overrides }: ProxyModeCon
    *
    * @see [GitHub permlink](https://github.com/modelcontextprotocol/typescript-sdk/blob/64653f54bd69ec2f6703f7c1e0745f84d220bea7/src/server/auth/router.ts#L69-L85) for the original implementation.
    */
-  const serverMetadata: Readonly<AuthorizationServerMetadata> = Object.freeze({
+  const serverMetadata: Readonly<CamelCaseAuthorizationServerMetadata> = Object.freeze({
     ...pick(
       metadata,
       'opPolicyUri',
@@ -63,7 +64,7 @@ export const createProxyRouter = ({ baseUrl, metadata, overrides }: ProxyModeCon
   // eslint-disable-next-line new-cap
   const router = Router();
 
-  router.get(metadataDiscoveryPath, cors(), (_, response) => {
+  router.get(serverMetadataPaths.oauth, cors(), (_, response) => {
     response.status(200).json(snakecaseKeys(condObject(serverMetadata)));
   });
 
