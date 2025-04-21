@@ -35,7 +35,8 @@
     "build": "rm -rf lib/ && tsc -p tsconfig.build.json",
     "prepack": "pnpm run build",
     "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput --incremental",
-    "test": "vitest"
+    "test": "vitest",
+    "lint": "eslint src"
   },
   "engines": {
     "node": "^20.19.0 || ^22.0.0 || ^23.0.0"

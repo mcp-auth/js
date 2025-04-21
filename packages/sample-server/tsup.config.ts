@@ -1,4 +1,4 @@
-import { type Options } from 'tsup';
+import { defineConfig, type Options } from 'tsup';
 
 export const config = Object.freeze({
   entry: ['src/index.ts'],
@@ -8,3 +8,5 @@ export const config = Object.freeze({
   sourcemap: true,
   clean: true,
 } satisfies Options);
+
+export default defineConfig(config);
