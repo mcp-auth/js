@@ -33,6 +33,8 @@
   },
   "scripts": {
     "build": "rm -rf lib/ && tsc -p tsconfig.build.json",
+    "prepack": "pnpm run build",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput --incremental",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "engines": {
@@ -58,6 +60,7 @@
     "@silverhand/essentials": "^2.9.2",
     "camelcase-keys": "^9.1.3",
     "cors": "^2.8.5",
+    "jose": "^6.0.10",
     "snakecase-keys": "^8.0.1",
     "zod": "^3.24.3"
   },

@@ -30,6 +30,7 @@ export const fetchServerConfigByWellKnownUrl = async (
 
   if (!response.ok) {
     throw new MCPAuthConfigError(
+      'fetch_server_config_error',
       `Failed to fetch server config from ${wellKnownUrl.toString()}: ${response.statusText}`
     );
   }

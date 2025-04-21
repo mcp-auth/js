@@ -5,7 +5,8 @@
   "description": "Connect your MCP server to any eligible OAuth 2 or OpenID Connect provider",
   "type": "module",
   "scripts": {
-    "preinstall": "npx only-allow pnpm"
+    "preinstall": "npx only-allow pnpm",
+    "dev": "pnpm -r prepack && pnpm -r --parallel dev"
   },
   "engines": {
     "node": "^20.19.0 || ^22.0.0 || ^23.0.0"

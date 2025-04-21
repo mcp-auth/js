@@ -1,34 +1,52 @@
-import { condObject } from '@silverhand/essentials';
+import { cond, condObject } from '@silverhand/essentials';
 
 export class MCPAuthError extends Error {
-  constructor(message: string) {
+  name = 'MCPAuthError';
+
+  constructor(
+    public readonly code: string,
+    message: string
+  ) {
     super(message);
-    this.name = 'MCPAuthError';
+  }
+
+  toJson(showCause = false): Record<string, unknown> {
+    return condObject({
+      error: this.code,
+      errorDescription: this.message,
+      cause: cond(showCause && this.cause),
+    });
   }
 }
 
 export class MCPAuthConfigError extends MCPAuthError {
-  constructor(message: string) {
-    super(message);
-    this.name = 'MCPAuthConfigError';
-  }
+  name = 'MCPAuthConfigError';
 }
 
-export type AuthServerErrorCode = 'invalid_server_metadata' | 'invalid_server_config';
+export type AuthServerErrorCode =
+  | 'invalid_server_metadata'
+  | 'invalid_server_config'
+  | 'missing_jwks_uri';
 
 export const authServerErrorDescription: Readonly<Record<AuthServerErrorCode, string>> =
   Object.freeze({
     invalid_server_metadata: 'The server metadata is invalid or malformed.',
     invalid_server_config: 'The server configuration does not match the MCP specification.',
+    missing_jwks_uri:
+      'The server metadata does not contain a JWKS URI, which is required for JWT verification.',
   });
 
 export class MCPAuthAuthServerError extends MCPAuthError {
+  name = 'MCPAuthAuthServerError';
+
   constructor(
     public readonly code: AuthServerErrorCode,
-    public readonly details?: unknown
+    public readonly cause?: unknown
   ) {
-    super(authServerErrorDescription[code] || 'An error occurred with the authorization server.');
-    this.name = 'MCPAuthAuthServerError';
+    super(
+      code,
+      authServerErrorDescription[code] || 'An error occurred with the authorization server.'
+    );
   }
 }
 
@@ -61,20 +79,58 @@ export type MCPAuthBearerAuthErrorDetails = {
 };
 
 export class MCPAuthBearerAuthError extends MCPAuthError {
+  name = 'MCPAuthBearerAuthError';
+
   constructor(
     public readonly code: BearerAuthErrorCode,
-    public readonly details?: MCPAuthBearerAuthErrorDetails
+    public readonly cause?: MCPAuthBearerAuthErrorDetails
   ) {
-    super(bearerAuthErrorDescription[code] || 'An error occurred during bearer authentication.');
-    this.name = 'MCPAuthBearerAuthError';
+    super(
+      code,
+      bearerAuthErrorDescription[code] || 'An error occurred during bearer authentication.'
+    );
   }
 
-  toJson(): Record<string, unknown> {
+  override toJson(showCause = false): Record<string, unknown> {
+    // Matches the OAuth 2.0 error response format at best effort
     return condObject({
-      errorCode: this.code,
-      errorDescription: bearerAuthErrorDescription[this.code],
-      errorUri: this.details?.uri?.href,
-      missingScopes: this.details?.missingScopes,
+      ...super.toJson(showCause),
+      errorUri: this.cause?.uri?.href,
+      missingScopes: this.cause?.missingScopes,
+    });
+  }
+}
+
+export type MCPAuthJwtVerificationErrorCode =
+  | 'invalid_jwt'
+  | 'jwt_verification_failed'
+  | 'jwt_expired';
+
+export const jwtVerificationErrorDescription: Readonly<
+  Record<MCPAuthJwtVerificationErrorCode, string>
+> = Object.freeze({
+  invalid_jwt: 'The provided JWT is invalid or malformed.',
+  jwt_verification_failed: 'JWT verification failed. The token could not be verified.',
+  jwt_expired: 'The provided JWT has expired.',
+});
+
+export class MCPAuthJwtVerificationError extends MCPAuthError {
+  name = 'MCPAuthJwtError';
+
+  constructor(
+    public readonly code: MCPAuthJwtVerificationErrorCode,
+    public readonly cause?: unknown
+  ) {
+    super(
+      code,
+      jwtVerificationErrorDescription[code] || 'An error occurred while processing the JWT.'
+    );
+  }
+
+  override toJson(showCause = false): Record<string, unknown> {
+    return condObject({
+      ...super.toJson(showCause),
+      cause: cond(showCause && this.cause),
     });
   }
 }

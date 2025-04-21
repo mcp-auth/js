@@ -12,7 +12,8 @@
     "directory": "packages/sample-server"
   },
   "scripts": {
-    "build": "rm -rf dist/ && tsc -p tsconfig.build.json",
+    "build": "tsup",
+    "dev": "tsup --config tsup.dev.config.ts",
     "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -34,6 +35,7 @@
     "@types/node": "^20.17.0",
     "eslint": "^8.57.0",
     "prettier": "^3.5.3",
+    "tsup": "^8.4.0",
     "typescript": "^5.8.3"
   },
   "eslintConfig": {

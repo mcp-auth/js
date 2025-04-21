@@ -1,10 +1,16 @@
 import { type IncomingHttpHeaders } from 'node:http';
 
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import { type RequestHandler } from 'express';
+import { condObject } from '@silverhand/essentials';
+import { type Response, type RequestHandler } from 'express';
 import snakecaseKeys from 'snakecase-keys';
 
-import { MCPAuthBearerAuthError } from '../errors.js';
+import {
+  MCPAuthAuthServerError,
+  MCPAuthBearerAuthError,
+  MCPAuthConfigError,
+  MCPAuthJwtVerificationError,
+} from '../errors.js';
 
 declare module '@modelcontextprotocol/sdk/server/auth/types.js' {
   /**
@@ -65,7 +71,7 @@ declare module '@modelcontextprotocol/sdk/server/auth/types.js' {
      * @see https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.3
      * @see https://datatracker.ietf.org/doc/html/rfc8707
      */
-    audience?: string;
+    audience?: string | string[];
     /**
      * The raw claims from the token, which can include any additional information provided by the
      * token issuer.
@@ -88,7 +94,7 @@ export type BearerAuthConfig = {
   issuer: string;
   audience?: string;
   requiredScopes?: string[];
-  clockTolerance?: number;
+  showErrorDetails?: boolean;
 };
 
 const getBearerTokenFromHeaders = (headers: IncomingHttpHeaders): string => {
@@ -111,21 +117,54 @@ const getBearerTokenFromHeaders = (headers: IncomingHttpHeaders): string => {
   return token;
 };
 
-export const handleBearerAuth = (config: BearerAuthConfig): RequestHandler => {
+const handleError = (error: unknown, response: Response, showErrorDetails = false): void => {
+  console.error('Error during bearer authentication:', error, showErrorDetails);
+
+  if (error instanceof MCPAuthJwtVerificationError) {
+    response.status(401).json(snakecaseKeys(error.toJson(showErrorDetails)));
+    return;
+  }
+
+  if (error instanceof MCPAuthBearerAuthError) {
+    response
+      .status(error.code === 'missing_required_scopes' ? 403 : 401)
+      .json(snakecaseKeys(error.toJson(showErrorDetails)));
+    return;
+  }
+
+  if (error instanceof MCPAuthAuthServerError || error instanceof MCPAuthConfigError) {
+    console.error('Authorization server error:', error);
+    response.status(500).json(
+      condObject({
+        error: 'server_error',
+        error_description: 'An error occurred with the authorization server.',
+        cause: showErrorDetails ? error.toJson() : undefined,
+      })
+    );
+    return;
+  }
+
+  console.error('Unexpected error during bearer authentication:', error);
+  throw error;
+};
+
+export const handleBearerAuth = ({
+  verifyAccessToken,
+  requiredScopes,
+  audience,
+  showErrorDetails,
+}: BearerAuthConfig): RequestHandler => {
   return async (request, response, next) => {
-    const token = getBearerTokenFromHeaders(request.headers);
-
     try {
-      const authInfo = await config.verifyAccessToken(token);
+      const token = getBearerTokenFromHeaders(request.headers);
+      const authInfo = await verifyAccessToken(token);
 
-      if (config.audience && authInfo.audience !== config.audience) {
+      if (audience && authInfo.audience !== audience) {
         throw new MCPAuthBearerAuthError('invalid_audience');
       }
 
-      if (config.requiredScopes) {
-        const missingScopes = config.requiredScopes.filter(
-          (scope) => !authInfo.scopes.includes(scope)
-        );
+      if (requiredScopes) {
+        const missingScopes = requiredScopes.filter((scope) => !authInfo.scopes.includes(scope));
         if (missingScopes.length > 0) {
           throw new MCPAuthBearerAuthError('missing_required_scopes', {
             missingScopes,
@@ -143,14 +182,7 @@ export const handleBearerAuth = (config: BearerAuthConfig): RequestHandler => {
       request.auth = authInfo;
       next();
     } catch (error) {
-      if (error instanceof MCPAuthBearerAuthError) {
-        response
-          .status(error.code === 'missing_required_scopes' ? 403 : 401)
-          .json(snakecaseKeys(error.toJson()));
-        return;
-      }
-      console.error('Unexpected error during bearer authentication:', error);
-      throw error;
+      handleError(error, response, showErrorDetails);
     }
   };
 };

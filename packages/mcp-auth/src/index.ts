@@ -1,4 +1,5 @@
 import { type RequestHandler, type Router } from 'express';
+import { createRemoteJWKSet, type RemoteJWKSetOptions, type JWTVerifyOptions } from 'jose';
 
 import { MCPAuthAuthServerError } from './errors.js';
 import {
@@ -10,7 +11,7 @@ import { createDelegatedRouter } from './routers/create-delegated-router.js';
 import { createProxyRouter, type ProxyModeConfig } from './routers/create-proxy-router.js';
 import { type AuthServerConfig } from './types/auth-server.js';
 import { validateServerConfig } from './utils/validate-server-config.js';
-import { verifyJwt } from './utils/verify-jwt.js';
+import { createVerifyJwt } from './utils/verify-jwt.js';
 
 export * from './types/oauth.js';
 export * from './types/auth-server.js';
@@ -26,18 +27,9 @@ export type MCPAuthConfig = {
 
 type VerifyAccessTokenMode = 'jwt';
 
-const getVerifyFunction = (
-  modeOrVerify: VerifyAccessTokenMode | VerifyAccessTokenFunction
-): VerifyAccessTokenFunction => {
-  if (typeof modeOrVerify === 'function') {
-    return modeOrVerify;
-  }
-
-  switch (modeOrVerify) {
-    case 'jwt': {
-      return verifyJwt;
-    }
-  }
+type AuthJwtConfig = {
+  jwtVerify?: JWTVerifyOptions;
+  remoteJwkSet?: RemoteJWKSetOptions;
 };
 
 export class MCPAuth {
@@ -52,7 +44,7 @@ export class MCPAuth {
 
     if (result.warnings.length > 0) {
       console.warn(
-        `[mcp-auth] The authorization server configuration has warnings:\n\n- ${result.warnings.join('\n- ')}`
+        `The authorization server configuration has warnings:\n\n  - ${result.warnings.join('\n  - ')}\n`
       );
     }
   }
@@ -74,11 +66,33 @@ export class MCPAuth {
 
   bearerAuth(
     modeOrVerify: VerifyAccessTokenMode | VerifyAccessTokenFunction,
-    config: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'>
+    {
+      jwtVerify,
+      remoteJwkSet,
+      ...config
+    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & AuthJwtConfig
   ): RequestHandler {
+    const { issuer, jwksUri } = this.config.server.metadata;
+
+    const getVerifyFunction = () => {
+      if (typeof modeOrVerify === 'function') {
+        return modeOrVerify;
+      }
+
+      switch (modeOrVerify) {
+        case 'jwt': {
+          if (!jwksUri) {
+            throw new MCPAuthAuthServerError('missing_jwks_uri');
+          }
+
+          return createVerifyJwt(createRemoteJWKSet(new URL(jwksUri), remoteJwkSet), jwtVerify);
+        }
+      }
+    };
+
     return handleBearerAuth({
-      verifyAccessToken: getVerifyFunction(modeOrVerify),
-      issuer: this.config.server.metadata.issuer,
+      verifyAccessToken: getVerifyFunction(),
+      issuer,
       ...config,
     });
   }
