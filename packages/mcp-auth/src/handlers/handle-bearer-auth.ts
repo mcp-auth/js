@@ -118,8 +118,6 @@ const getBearerTokenFromHeaders = (headers: IncomingHttpHeaders): string => {
 };
 
 const handleError = (error: unknown, response: Response, showErrorDetails = false): void => {
-  console.error('Error during bearer authentication:', error, showErrorDetails);
-
   if (error instanceof MCPAuthJwtVerificationError) {
     response.status(401).json(snakecaseKeys(error.toJson(showErrorDetails)));
     return;
@@ -133,7 +131,6 @@ const handleError = (error: unknown, response: Response, showErrorDetails = fals
   }
 
   if (error instanceof MCPAuthAuthServerError || error instanceof MCPAuthConfigError) {
-    console.error('Authorization server error:', error);
     response.status(500).json(
       condObject({
         error: 'server_error',
@@ -144,7 +141,6 @@ const handleError = (error: unknown, response: Response, showErrorDetails = fals
     return;
   }
 
-  console.error('Unexpected error during bearer authentication:', error);
   throw error;
 };
 
@@ -159,7 +155,12 @@ export const handleBearerAuth = ({
       const token = getBearerTokenFromHeaders(request.headers);
       const authInfo = await verifyAccessToken(token);
 
-      if (audience && authInfo.audience !== audience) {
+      if (
+        audience &&
+        (Array.isArray(authInfo.audience)
+          ? !authInfo.audience.includes(audience)
+          : authInfo.audience !== audience)
+      ) {
         throw new MCPAuthBearerAuthError('invalid_audience');
       }
 
@@ -182,6 +183,7 @@ export const handleBearerAuth = ({
       request.auth = authInfo;
       next();
     } catch (error) {
+      console.error('Error during Bearer authentication:', error);
       handleError(error, response, showErrorDetails);
     }
   };

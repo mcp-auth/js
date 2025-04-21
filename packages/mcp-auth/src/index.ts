@@ -10,8 +10,8 @@ import {
 import { createDelegatedRouter } from './routers/create-delegated-router.js';
 import { createProxyRouter, type ProxyModeConfig } from './routers/create-proxy-router.js';
 import { type AuthServerConfig } from './types/auth-server.js';
+import { createVerifyJwt } from './utils/create-verify-jwt.js';
 import { validateServerConfig } from './utils/validate-server-config.js';
-import { createVerifyJwt } from './utils/verify-jwt.js';
 
 export * from './types/oauth.js';
 export * from './types/auth-server.js';
@@ -19,7 +19,7 @@ export * from './errors.js';
 export * from './handlers/handle-bearer-auth.js';
 export * from './utils/fetch-server-config.js';
 export * from './utils/validate-server-config.js';
-export * from './utils/verify-jwt.js';
+export * from './utils/create-verify-jwt.js';
 
 export type MCPAuthConfig = {
   server: AuthServerConfig;
@@ -70,7 +70,7 @@ export class MCPAuth {
       jwtVerify,
       remoteJwkSet,
       ...config
-    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & AuthJwtConfig
+    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & AuthJwtConfig = {}
   ): RequestHandler {
     const { issuer, jwksUri } = this.config.server.metadata;
 

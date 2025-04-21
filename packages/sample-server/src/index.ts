@@ -60,7 +60,7 @@ const app = express();
 
 app.use(mcpAuth.delegatedRouter());
 
-app.post('/mcp', mcpAuth.bearerAuth('jwt', {}), async (request, response) => {
+app.post('/mcp', mcpAuth.bearerAuth('jwt'), async (request, response) => {
   console.log('Received MCP request:', request.body);
   try {
     await transport.handleRequest(request, response, request.body);
