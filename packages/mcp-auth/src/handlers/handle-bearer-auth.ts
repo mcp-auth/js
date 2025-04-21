@@ -11,6 +11,7 @@ import {
   MCPAuthConfigError,
   MCPAuthJwtVerificationError,
 } from '../errors.js';
+import { type MaybePromise } from '../types/promise.js';
 
 declare module '@modelcontextprotocol/sdk/server/auth/types.js' {
   /**
@@ -87,7 +88,7 @@ declare module 'express-serve-static-core' {
   }
 }
 
-export type VerifyAccessTokenFunction = (token: string) => PromiseLike<AuthInfo>;
+export type VerifyAccessTokenFunction = (token: string) => MaybePromise<AuthInfo>;
 
 export type BearerAuthConfig = {
   verifyAccessToken: VerifyAccessTokenFunction;

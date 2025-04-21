@@ -85,10 +85,7 @@ export class MCPAuthBearerAuthError extends MCPAuthError {
     public readonly code: BearerAuthErrorCode,
     public readonly cause?: MCPAuthBearerAuthErrorDetails
   ) {
-    super(
-      code,
-      bearerAuthErrorDescription[code] || 'An error occurred during bearer authentication.'
-    );
+    super(code, bearerAuthErrorDescription[code] || 'An error occurred with the Bearer auth.');
   }
 
   override toJson(showCause = false): Record<string, unknown> {
@@ -115,7 +112,7 @@ export const jwtVerificationErrorDescription: Readonly<
 });
 
 export class MCPAuthJwtVerificationError extends MCPAuthError {
-  name = 'MCPAuthJwtError';
+  name = 'MCPAuthJwtVerificationError';
 
   constructor(
     public readonly code: MCPAuthJwtVerificationErrorCode,
@@ -123,14 +120,7 @@ export class MCPAuthJwtVerificationError extends MCPAuthError {
   ) {
     super(
       code,
-      jwtVerificationErrorDescription[code] || 'An error occurred while processing the JWT.'
+      jwtVerificationErrorDescription[code] || 'An error occurred while verifying the JWT.'
     );
-  }
-
-  override toJson(showCause = false): Record<string, unknown> {
-    return condObject({
-      ...super.toJson(showCause),
-      cause: cond(showCause && this.cause),
-    });
   }
 }

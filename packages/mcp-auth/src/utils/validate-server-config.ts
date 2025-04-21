@@ -3,6 +3,7 @@ import { type AuthServerConfig } from '../types/auth-server.js';
 export type AuthServerConfigErrorCode =
   | 'code_response_type_not_supported'
   | 'authorization_code_grant_not_supported'
+  | 'pkce_not_supported'
   | 's256_code_challenge_method_not_supported';
 
 export const authServerConfigErrorDescription: Readonly<Record<AuthServerConfigErrorCode, string>> =
@@ -11,6 +12,7 @@ export const authServerConfigErrorDescription: Readonly<Record<AuthServerConfigE
       'The server does not support the "code" response type or the "code" response type is not included in one of the supported response types.',
     authorization_code_grant_not_supported:
       'The server does not support the "authorization_code" grant type.',
+    pkce_not_supported: 'The server does not support Proof Key for Code Exchange (PKCE).',
     s256_code_challenge_method_not_supported:
       'The server does not support the "S256" code challenge method for Proof Key for Code Exchange (PKCE).',
   });
@@ -37,7 +39,7 @@ type AuthServerConfigValidationResult =
 
 export const validateServerConfig = ({
   metadata,
-}: AuthServerConfig): AuthServerConfigValidationResult => {
+}: Readonly<AuthServerConfig>): AuthServerConfigValidationResult => {
   const errors: AuthServerConfigErrorCode[] = [];
   const warnings: AuthServerConfigWarningCode[] = [];
 
@@ -50,10 +52,9 @@ export const validateServerConfig = ({
     errors.push('authorization_code_grant_not_supported');
   }
 
-  if (
-    metadata.codeChallengeMethodsSupported &&
-    !metadata.codeChallengeMethodsSupported.includes('S256')
-  ) {
+  if (!metadata.codeChallengeMethodsSupported) {
+    errors.push('pkce_not_supported');
+  } else if (!metadata.codeChallengeMethodsSupported.includes('S256')) {
     errors.push('s256_code_challenge_method_not_supported');
   }
 
@@ -62,9 +63,5 @@ export const validateServerConfig = ({
   }
   /* eslint-enable @silverhand/fp/no-mutating-methods */
 
-  return {
-    isValid: errors.length === 0,
-    errors,
-    warnings,
-  };
+  return errors.length === 0 ? { isValid: true, warnings } : { isValid: false, errors, warnings };
 };

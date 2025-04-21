@@ -3,7 +3,11 @@ import camelcaseKeys from 'camelcase-keys';
 
 import { MCPAuthAuthServerError, MCPAuthConfigError } from '../errors.js';
 import { type AuthServerConfig, type AuthServerType } from '../types/auth-server.js';
-import { authorizationServerMetadataSchemaGuard } from '../types/oauth.js';
+import {
+  type AuthorizationServerMetadata,
+  authorizationServerMetadataSchemaGuard,
+} from '../types/oauth.js';
+import { type MaybePromise } from '../types/promise.js';
 
 export const serverMetadataPaths = Object.freeze({
   oauth: '/.well-known/oauth-authorization-server',
@@ -22,9 +26,18 @@ const getOAuthWellKnownUrl = (issuer: string) => {
 const getOidcWellKnownUrl = (issuer: string) =>
   appendPath(new URL(issuer), serverMetadataPaths.oidc);
 
+type ServerMetadataConfig = {
+  type: AuthServerType;
+
+  transpileData?: (
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    data: object
+  ) => MaybePromise<AuthorizationServerMetadata | Record<string, unknown>>;
+};
+
 export const fetchServerConfigByWellKnownUrl = async (
   wellKnownUrl: string | URL,
-  type: AuthServerType
+  { type, transpileData }: ServerMetadataConfig
 ): Promise<AuthServerConfig> => {
   const response = await fetch(wellKnownUrl);
 
@@ -37,7 +50,16 @@ export const fetchServerConfigByWellKnownUrl = async (
 
   const metadata: unknown = await response.json();
 
-  const parsed = authorizationServerMetadataSchemaGuard.safeParse(metadata);
+  if (typeof metadata !== 'object' || metadata === null) {
+    throw new MCPAuthAuthServerError('invalid_server_metadata', {
+      metadata,
+      message: 'The server metadata is not a valid object or is null.',
+    });
+  }
+
+  const parsed = authorizationServerMetadataSchemaGuard.safeParse(
+    transpileData?.(metadata) ?? metadata
+  );
 
   if (!parsed.success) {
     throw new MCPAuthAuthServerError('invalid_server_metadata', {
@@ -54,9 +76,9 @@ export const fetchServerConfigByWellKnownUrl = async (
 
 export const fetchServerConfig = async (
   issuer: string,
-  type: AuthServerType
+  config: ServerMetadataConfig
 ): Promise<AuthServerConfig> =>
   fetchServerConfigByWellKnownUrl(
-    type === 'oauth' ? getOAuthWellKnownUrl(issuer) : getOidcWellKnownUrl(issuer),
-    type
+    config.type === 'oauth' ? getOAuthWellKnownUrl(issuer) : getOidcWellKnownUrl(issuer),
+    config
   );

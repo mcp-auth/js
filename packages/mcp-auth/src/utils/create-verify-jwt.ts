@@ -19,20 +19,20 @@ export const createVerifyJwt =
   async (token) => {
     const { payload } = await tryThat(jwtVerify(token, getKey, { ...options }), (error) => {
       throw new MCPAuthJwtVerificationError('invalid_jwt', {
-        code: error instanceof JOSEError ? error.code : 'jwt_verification_failed',
+        code: error instanceof JOSEError ? error.code : 'JWT_VERIFICATION_FAILED',
         cause: error,
       });
     });
 
     if (typeof payload.client_id !== 'string' || !payload.client_id) {
       throw new MCPAuthJwtVerificationError('invalid_jwt', {
-        cause: 'The JWT payload does not contain the `client_id` field.',
+        cause: 'The JWT payload does not contain the `client_id` field or it is malformed.',
       });
     }
 
     if (typeof payload.sub !== 'string' || !payload.sub) {
       throw new MCPAuthJwtVerificationError('invalid_jwt', {
-        cause: 'The JWT payload does not contain the `sub` field.',
+        cause: 'The JWT payload does not contain the `sub` field or it is malformed.',
       });
     }
 
