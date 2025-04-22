@@ -7,7 +7,7 @@ import { type AuthServerConfig } from '../types/auth-server.js';
 import { validateServerConfig } from './validate-server-config.js';
 
 describe('validateServerConfig', () => {
-  it('should has set `isValid` to true if the server config is valid', () => {
+  it('should have set `isValid` to true if the server config is valid', () => {
     const config: AuthServerConfig = {
       type: 'oauth',
       metadata: {
@@ -27,7 +27,7 @@ describe('validateServerConfig', () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it('should has set `isValid` to false if the server config is invalid', () => {
+  it('should have set `isValid` to false if the server config is invalid', () => {
     const config: AuthServerConfig = {
       type: 'oauth',
       metadata: {
