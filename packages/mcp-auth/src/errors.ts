@@ -65,11 +65,10 @@ export const bearerAuthErrorDescription: Readonly<Record<BearerAuthErrorCode, st
     invalid_auth_header_format: 'Invalid `Authorization` header format. Expected "Bearer <token>".',
     missing_bearer_token:
       'Missing bearer token in `Authorization` header. Please provide a valid token.',
-    invalid_issuer: 'Invalid issuer. The token issuer does not match the expected issuer.',
-    invalid_audience: 'Invalid audience. The token audience does not match the expected audience.',
-    missing_required_scopes:
-      'Missing required scopes. The token does not contain the necessary scopes for this request.',
-    invalid_token: 'Invalid token. The provided token is not valid or has expired.',
+    invalid_issuer: 'The token issuer does not match the expected issuer.',
+    invalid_audience: 'The token audience does not match the expected audience.',
+    missing_required_scopes: 'The token does not contain the necessary scopes for this request.',
+    invalid_token: 'The provided token is not valid or has expired.',
   });
 
 export type MCPAuthBearerAuthErrorDetails = {

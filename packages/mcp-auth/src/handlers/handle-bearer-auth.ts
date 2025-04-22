@@ -88,11 +88,22 @@ declare module 'express-serve-static-core' {
   }
 }
 
+/**
+ * Function type for verifying an access token.
+ *
+ * This function should throw an {@link MCPAuthJwtVerificationError} if the token is invalid,
+ * or return an {@link AuthInfo} object if the token is valid.
+ */
 export type VerifyAccessTokenFunction = (token: string) => MaybePromise<AuthInfo>;
 
 export type BearerAuthConfig = {
+  /**
+   * Function type for verifying an access token.
+   *
+   * This function should throw an {@link MCPAuthJwtVerificationError} if the token is invalid,
+   * or return an {@link AuthInfo} object if the token is valid.
+   */
   verifyAccessToken: VerifyAccessTokenFunction;
-  issuer: string;
   audience?: string;
   requiredScopes?: string[];
   showErrorDetails?: boolean;
@@ -133,11 +144,13 @@ const handleError = (error: unknown, response: Response, showErrorDetails = fals
 
   if (error instanceof MCPAuthAuthServerError || error instanceof MCPAuthConfigError) {
     response.status(500).json(
-      condObject({
-        error: 'server_error',
-        error_description: 'An error occurred with the authorization server.',
-        cause: showErrorDetails ? error.toJson() : undefined,
-      })
+      snakecaseKeys(
+        condObject({
+          error: 'server_error',
+          error_description: 'An error occurred with the authorization server.',
+          cause: showErrorDetails ? error.toJson() : undefined,
+        })
+      )
     );
     return;
   }
@@ -151,6 +164,12 @@ export const handleBearerAuth = ({
   audience,
   showErrorDetails,
 }: BearerAuthConfig): RequestHandler => {
+  if (typeof verifyAccessToken !== 'function') {
+    throw new TypeError(
+      '`verifyAccessToken` must be a function that takes a token and returns an `AuthInfo` object.'
+    );
+  }
+
   return async (request, response, next) => {
     try {
       const token = getBearerTokenFromHeaders(request.headers);
