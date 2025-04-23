@@ -34,6 +34,20 @@ describe('createVerifyJwt() returning error handling', () => {
     expect.assertions(3);
   });
 
+  it('should throw an error if the JWT payload does not contain the `iss` field or it is malformed', async () => {
+    const verifyJwt = createVerifyJwt(() => secret);
+    const jwts = await Promise.all([
+      createJwt({ client_id: 'client12345', sub: 'user12345' }),
+      createJwt({ iss: 12_345, client_id: 'client12345', sub: 'user12345' }),
+      createJwt({ iss: '', client_id: 'client12345', sub: 'user12345' }),
+    ]);
+    const error = new MCPAuthJwtVerificationError('invalid_jwt', {
+      cause: 'The JWT payload does not contain the `iss` field or it is malformed.',
+    });
+
+    await Promise.all(jwts.map(async (jwt) => expect(verifyJwt(jwt)).rejects.toThrow(error)));
+  });
+
   it('should throw an error if the JWT payload does not contain the `client_id` field or it is malformed', async () => {
     const verifyJwt = createVerifyJwt(() => secret);
     const jwts = await Promise.all([

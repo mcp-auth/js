@@ -1,7 +1,7 @@
 import { type IncomingHttpHeaders } from 'node:http';
 
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import { condObject } from '@silverhand/essentials';
+import { condObject, trySafe } from '@silverhand/essentials';
 import { type Response, type RequestHandler } from 'express';
 import snakecaseKeys from 'snakecase-keys';
 
@@ -180,8 +180,8 @@ export const handleBearerAuth = ({
     );
   }
 
-  if (typeof issuer !== 'string' || !issuer) {
-    throw new MCPAuthConfigError('invalid_issuer', '`issuer` must be a non-empty string.');
+  if (!trySafe(() => new URL(issuer))) {
+    throw new TypeError(`\`issuer\` must be a valid URL.`);
   }
 
   return async (request, response, next) => {

@@ -36,6 +36,18 @@ describe('handleBearerAuth()', () => {
       '[TypeError: `verifyAccessToken` must be a function that takes a token and returns an `AuthInfo` object.]'
     );
   });
+
+  it('should throw an error if issuer is not a valid URL', () => {
+    expect(() =>
+      handleBearerAuth({
+        // @ts-expect-error
+        verifyAccessToken: noop,
+        issuer: 'not a valid url',
+        requiredScopes: [],
+        audience: undefined,
+      })
+    ).toThrowErrorMatchingInlineSnapshot('[TypeError: `issuer` must be a valid URL.]');
+  });
 });
 
 describe('handleBearerAuth() returned function with invalid headers or tokens', () => {
