@@ -1,7 +1,7 @@
 import { type IncomingHttpHeaders } from 'node:http';
 
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import { condObject } from '@silverhand/essentials';
+import { condObject, trySafe } from '@silverhand/essentials';
 import { type Response, type RequestHandler } from 'express';
 import snakecaseKeys from 'snakecase-keys';
 
@@ -31,6 +31,14 @@ declare module '@modelcontextprotocol/sdk/server/auth/types.js' {
      * The raw access token received in the request.
      */
     token: string;
+    /**
+     * The issuer of the access token, which is typically the OAuth / OIDC provider that issued
+     * the token. This is usually a URL that identifies the authorization server.
+     *
+     * @see https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.1
+     * @see https://openid.net/specs/openid-connect-core-1_0.html#IssuerIdentifier
+     */
+    issuer: string;
     /**
      *
      * **Notes from mcp-auth:**
@@ -88,9 +96,21 @@ declare module 'express-serve-static-core' {
   }
 }
 
+/**
+ * Function type for verifying an access token.
+ *
+ * This function should throw an {@link MCPAuthJwtVerificationError} if the token is invalid,
+ * or return an {@link AuthInfo} object if the token is valid.
+ */
 export type VerifyAccessTokenFunction = (token: string) => MaybePromise<AuthInfo>;
 
 export type BearerAuthConfig = {
+  /**
+   * Function type for verifying an access token.
+   *
+   * This function should throw an {@link MCPAuthJwtVerificationError} if the token is invalid,
+   * or return an {@link AuthInfo} object if the token is valid.
+   */
   verifyAccessToken: VerifyAccessTokenFunction;
   issuer: string;
   audience?: string;
@@ -133,11 +153,13 @@ const handleError = (error: unknown, response: Response, showErrorDetails = fals
 
   if (error instanceof MCPAuthAuthServerError || error instanceof MCPAuthConfigError) {
     response.status(500).json(
-      condObject({
-        error: 'server_error',
-        error_description: 'An error occurred with the authorization server.',
-        cause: showErrorDetails ? error.toJson() : undefined,
-      })
+      snakecaseKeys(
+        condObject({
+          error: 'server_error',
+          error_description: 'An error occurred with the authorization server.',
+          cause: showErrorDetails ? error.toJson() : undefined,
+        })
+      )
     );
     return;
   }
@@ -147,14 +169,32 @@ const handleError = (error: unknown, response: Response, showErrorDetails = fals
 
 export const handleBearerAuth = ({
   verifyAccessToken,
+  issuer,
   requiredScopes,
   audience,
   showErrorDetails,
 }: BearerAuthConfig): RequestHandler => {
-  return async (request, response, next) => {
+  if (typeof verifyAccessToken !== 'function') {
+    throw new TypeError(
+      '`verifyAccessToken` must be a function that takes a token and returns an `AuthInfo` object.'
+    );
+  }
+
+  if (!trySafe(() => new URL(issuer))) {
+    throw new TypeError(`\`issuer\` must be a valid URL.`);
+  }
+
+  const bearerAuthHandler: RequestHandler = async function (request, response, next) {
     try {
       const token = getBearerTokenFromHeaders(request.headers);
       const authInfo = await verifyAccessToken(token);
+
+      if (authInfo.issuer !== issuer) {
+        throw new MCPAuthBearerAuthError('invalid_issuer', {
+          expected: issuer,
+          actual: authInfo.issuer,
+        });
+      }
 
       if (
         audience &&
@@ -162,7 +202,10 @@ export const handleBearerAuth = ({
           ? !authInfo.audience.includes(audience)
           : authInfo.audience !== audience)
       ) {
-        throw new MCPAuthBearerAuthError('invalid_audience');
+        throw new MCPAuthBearerAuthError('invalid_audience', {
+          expected: audience,
+          actual: authInfo.audience,
+        });
       }
 
       if (requiredScopes) {
@@ -188,4 +231,6 @@ export const handleBearerAuth = ({
       handleError(error, response, showErrorDetails);
     }
   };
+
+  return bearerAuthHandler;
 };

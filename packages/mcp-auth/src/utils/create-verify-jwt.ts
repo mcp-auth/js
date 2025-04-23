@@ -1,3 +1,4 @@
+import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { tryThat } from '@silverhand/essentials';
 import { jwtVerify, type JWTVerifyGetKey, type JWTVerifyOptions } from 'jose';
 import { JOSEError } from 'jose/errors';
@@ -14,15 +15,23 @@ const getScopes = (value: unknown): string[] | undefined => {
   }
 };
 
-export const createVerifyJwt =
-  (getKey: JWTVerifyGetKey, options?: JWTVerifyOptions): VerifyAccessTokenFunction =>
-  async (token) => {
+export const createVerifyJwt = (
+  getKey: JWTVerifyGetKey,
+  options?: JWTVerifyOptions
+): VerifyAccessTokenFunction => {
+  const verifyJwt = async function (token: string): Promise<AuthInfo> {
     const { payload } = await tryThat(jwtVerify(token, getKey, { ...options }), (error) => {
       throw new MCPAuthJwtVerificationError('invalid_jwt', {
         code: error instanceof JOSEError ? error.code : 'JWT_VERIFICATION_FAILED',
         cause: error,
       });
     });
+
+    if (typeof payload.iss !== 'string' || !payload.iss) {
+      throw new MCPAuthJwtVerificationError('invalid_jwt', {
+        cause: 'The JWT payload does not contain the `iss` field or it is malformed.',
+      });
+    }
 
     if (typeof payload.client_id !== 'string' || !payload.client_id) {
       throw new MCPAuthJwtVerificationError('invalid_jwt', {
@@ -37,6 +46,7 @@ export const createVerifyJwt =
     }
 
     return {
+      issuer: payload.iss,
       clientId: payload.client_id,
       scopes: getScopes(payload.scope) ?? getScopes(payload.scopes) ?? [],
       token,
@@ -46,3 +56,6 @@ export const createVerifyJwt =
       subject: payload.sub,
     };
   };
+
+  return verifyJwt;
+};

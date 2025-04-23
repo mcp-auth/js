@@ -42,12 +42,16 @@ describe('validateServerConfig', () => {
     assert(!result.isValid, 'Expected isValid to be false');
     expect(result.errors).toEqual(
       expect.arrayContaining([
-        'code_response_type_not_supported',
-        'authorization_code_grant_not_supported',
-        'pkce_not_supported',
+        expect.objectContaining({ code: 'code_response_type_not_supported' }),
+        expect.objectContaining({ code: 'authorization_code_grant_not_supported' }),
+        expect.objectContaining({ code: 'pkce_not_supported' }),
       ])
     );
-    expect(result.warnings).toEqual(expect.arrayContaining(['dynamic_registration_not_supported']));
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'dynamic_registration_not_supported' }),
+      ])
+    );
   });
 
   it('should return warnings if the server config has dynamic registration not supported', () => {
@@ -66,7 +70,9 @@ describe('validateServerConfig', () => {
     const result = validateServerConfig(config);
     expect(result.isValid).toBe(true);
     expect(result).not.toHaveProperty('errors');
-    expect(result.warnings).toEqual(['dynamic_registration_not_supported']);
+    expect(result.warnings).toEqual([
+      expect.objectContaining({ code: 'dynamic_registration_not_supported' }),
+    ]);
   });
 
   it('should check code challenge methods', () => {
@@ -85,7 +91,9 @@ describe('validateServerConfig', () => {
     const result = validateServerConfig(config);
     assert(!result.isValid, 'Expected isValid to be false');
     expect(result.errors).toEqual(
-      expect.arrayContaining(['s256_code_challenge_method_not_supported'])
+      expect.arrayContaining([
+        expect.objectContaining({ code: 's256_code_challenge_method_not_supported' }),
+      ])
     );
   });
 });

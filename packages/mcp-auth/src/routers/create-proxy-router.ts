@@ -60,7 +60,6 @@ export const createProxyRouter = ({ baseUrl, metadata, overrides }: ProxyModeCon
     revocationEndpoint: revocationPath && new URL(revocationPath, baseUrl).href,
   });
 
-  // Create the proxy mode router
   // eslint-disable-next-line new-cap
   const router = Router();
 
@@ -68,30 +67,33 @@ export const createProxyRouter = ({ baseUrl, metadata, overrides }: ProxyModeCon
     response.status(200).json(snakecaseKeys(condObject(serverMetadata)));
   });
 
+  // eslint-disable-next-line no-restricted-syntax -- It's a string array
+  const paths = [authorizationPath, tokenPath, registrationPath, revocationPath].filter(
+    Boolean
+  ) as string[];
+
   router.use(
     createProxyMiddleware({
-      // eslint-disable-next-line no-restricted-syntax -- It is a string array
-      pathFilter: [authorizationPath, tokenPath, registrationPath, revocationPath].filter(
-        Boolean
-      ) as string[],
-      pathRewrite: (path) => {
+      target: metadata.issuer,
+      pathFilter: (pathname) => paths.includes(pathname),
+      pathRewrite: (_, request) => {
+        const { path } = request;
+
         if (path === authorizationPath) {
-          return metadata.authorizationEndpoint;
+          return new URL(metadata.authorizationEndpoint).pathname;
         }
 
         if (path === tokenPath) {
-          return metadata.tokenEndpoint;
+          return new URL(metadata.tokenEndpoint).pathname;
         }
 
         if (registrationPath && path === registrationPath) {
-          return metadata.registrationEndpoint;
+          return metadata.registrationEndpoint && new URL(metadata.registrationEndpoint).pathname;
         }
 
         if (revocationPath && path === revocationPath) {
-          return metadata.revocationEndpoint;
+          return metadata.revocationEndpoint && new URL(metadata.revocationEndpoint).pathname;
         }
-
-        return path;
       },
     })
   );

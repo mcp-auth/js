@@ -1,12 +1,7 @@
-import { type CamelCaseKeys } from 'camelcase-keys';
+import camelcaseKeys from 'camelcase-keys';
 import { z } from 'zod';
 
-/**
- * Schema for OAuth 2.0 Authorization Server Metadata as defined in RFC 8414.
- *
- * @see https://datatracker.ietf.org/doc/html/rfc8414
- */
-export const authorizationServerMetadataSchemaGuard = z.object({
+const authorizationServerMetadataSchema = Object.freeze({
   /**
    * The authorization server's issuer identifier, which is a URL that uses the `https` scheme and
    * has no query or fragment components.
@@ -82,6 +77,13 @@ export const authorizationServerMetadataSchemaGuard = z.object({
 });
 
 /**
+ * Schema for OAuth 2.0 Authorization Server Metadata as defined in RFC 8414.
+ *
+ * @see https://datatracker.ietf.org/doc/html/rfc8414
+ */
+export const authorizationServerMetadataSchemaGuard = z.object(authorizationServerMetadataSchema);
+
+/**
  * Schema for OAuth 2.0 Authorization Server Metadata
  * as defined in RFC 8414.
  *
@@ -89,4 +91,10 @@ export const authorizationServerMetadataSchemaGuard = z.object({
  */
 export type AuthorizationServerMetadata = z.infer<typeof authorizationServerMetadataSchemaGuard>;
 
-export type CamelCaseAuthorizationServerMetadata = CamelCaseKeys<AuthorizationServerMetadata>;
+export const camelCaseAuthorizationServerMetadataSchema = z.object(
+  camelcaseKeys(authorizationServerMetadataSchema)
+);
+
+export type CamelCaseAuthorizationServerMetadata = z.infer<
+  typeof camelCaseAuthorizationServerMetadataSchema
+>;

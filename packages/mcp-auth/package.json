@@ -52,13 +52,16 @@
     "@types/express": "^5.0.1",
     "@types/express-serve-static-core": "^5.0.6",
     "@types/node": "^20.17.0",
+    "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "3.1.1",
     "eslint": "^8.57.0",
     "express": "5.0.1",
+    "nock": "^14.0.4",
+    "node-mocks-http": "^1.16.2",
     "prettier": "^3.5.3",
+    "supertest": "^7.1.0",
     "typescript": "^5.8.3",
-    "vitest": "^3.1.1",
-    "vitest-fetch-mock": "^0.4.5"
+    "vitest": "^3.1.1"
   },
   "dependencies": {
     "@silverhand/essentials": "^2.9.2",

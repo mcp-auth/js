@@ -44,7 +44,7 @@ export class MCPAuth {
 
     if (result.warnings.length > 0) {
       console.warn(
-        `The authorization server configuration has warnings:\n\n  - ${result.warnings.join('\n  - ')}\n`
+        `The authorization server configuration has warnings:\n\n  - ${result.warnings.map(({ description }) => description).join('\n  - ')}\n`
       );
     }
   }
