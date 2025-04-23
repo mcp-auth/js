@@ -75,6 +75,8 @@ export type MCPAuthBearerAuthErrorDetails = {
   cause?: unknown;
   uri?: URL;
   missingScopes?: string[];
+  expected?: unknown;
+  actual?: unknown;
 };
 
 export class MCPAuthBearerAuthError extends MCPAuthError {

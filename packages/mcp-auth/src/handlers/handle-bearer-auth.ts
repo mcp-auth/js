@@ -32,6 +32,14 @@ declare module '@modelcontextprotocol/sdk/server/auth/types.js' {
      */
     token: string;
     /**
+     * The issuer of the access token, which is typically the OAuth / OIDC provider that issued
+     * the token. This is usually a URL that identifies the authorization server.
+     *
+     * @see https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.1
+     * @see https://openid.net/specs/openid-connect-core-1_0.html#IssuerIdentifier
+     */
+    issuer: string;
+    /**
      *
      * **Notes from mcp-auth:**
      *
@@ -104,6 +112,7 @@ export type BearerAuthConfig = {
    * or return an {@link AuthInfo} object if the token is valid.
    */
   verifyAccessToken: VerifyAccessTokenFunction;
+  issuer: string;
   audience?: string;
   requiredScopes?: string[];
   showErrorDetails?: boolean;
@@ -160,6 +169,7 @@ const handleError = (error: unknown, response: Response, showErrorDetails = fals
 
 export const handleBearerAuth = ({
   verifyAccessToken,
+  issuer,
   requiredScopes,
   audience,
   showErrorDetails,
@@ -170,10 +180,21 @@ export const handleBearerAuth = ({
     );
   }
 
+  if (typeof issuer !== 'string' || !issuer) {
+    throw new MCPAuthConfigError('invalid_issuer', '`issuer` must be a non-empty string.');
+  }
+
   return async (request, response, next) => {
     try {
       const token = getBearerTokenFromHeaders(request.headers);
       const authInfo = await verifyAccessToken(token);
+
+      if (authInfo.issuer !== issuer) {
+        throw new MCPAuthBearerAuthError('invalid_issuer', {
+          expected: issuer,
+          actual: authInfo.issuer,
+        });
+      }
 
       if (
         audience &&
@@ -181,7 +202,10 @@ export const handleBearerAuth = ({
           ? !authInfo.audience.includes(audience)
           : authInfo.audience !== audience)
       ) {
-        throw new MCPAuthBearerAuthError('invalid_audience');
+        throw new MCPAuthBearerAuthError('invalid_audience', {
+          expected: audience,
+          actual: authInfo.audience,
+        });
       }
 
       if (requiredScopes) {

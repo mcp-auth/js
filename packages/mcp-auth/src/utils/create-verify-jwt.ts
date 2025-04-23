@@ -24,6 +24,12 @@ export const createVerifyJwt =
       });
     });
 
+    if (typeof payload.iss !== 'string' || !payload.iss) {
+      throw new MCPAuthJwtVerificationError('invalid_jwt', {
+        cause: 'The JWT payload does not contain the `iss` field or it is malformed.',
+      });
+    }
+
     if (typeof payload.client_id !== 'string' || !payload.client_id) {
       throw new MCPAuthJwtVerificationError('invalid_jwt', {
         cause: 'The JWT payload does not contain the `client_id` field or it is malformed.',
@@ -37,6 +43,7 @@ export const createVerifyJwt =
     }
 
     return {
+      issuer: payload.iss,
       clientId: payload.client_id,
       scopes: getScopes(payload.scope) ?? getScopes(payload.scopes) ?? [],
       token,

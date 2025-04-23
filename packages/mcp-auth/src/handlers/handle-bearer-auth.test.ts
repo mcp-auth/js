@@ -16,6 +16,7 @@ describe('handleBearerAuth()', () => {
       handleBearerAuth({
         // @ts-expect-error
         verifyAccessToken: noop,
+        issuer: 'https://example.com',
         requiredScopes: [],
         audience: undefined,
       })
@@ -27,6 +28,7 @@ describe('handleBearerAuth()', () => {
       handleBearerAuth({
         // @ts-expect-error
         verifyAccessToken: 'not a function',
+        issuer: 'https://example.com',
         requiredScopes: [],
         audience: undefined,
       })
@@ -37,16 +39,19 @@ describe('handleBearerAuth()', () => {
 });
 
 describe('handleBearerAuth() returned function with invalid headers or tokens', () => {
+  const issuer = 'https://example.com';
+  const requiredScopes = ['read', 'write'];
+  const audience = 'test-audience';
   const verifyAccessToken = vi.fn<VerifyAccessTokenFunction>(async (token: string) => {
     if (token === 'valid-token') {
-      return { clientId: 'client-id', scopes: ['read', 'write'], token };
+      return { issuer, clientId: 'client-id', scopes: ['read', 'write'], token };
     }
     throw new MCPAuthJwtVerificationError('invalid_jwt');
   });
-  const requiredScopes = ['read', 'write'];
-  const audience = 'test-audience';
+
   const handler = handleBearerAuth({
     verifyAccessToken,
+    issuer,
     requiredScopes,
     audience,
   });
@@ -120,19 +125,48 @@ describe('handleBearerAuth() returned function with invalid headers or tokens', 
   });
 });
 
-describe('handleBearerAuth() returned function with invalid audience or scopes', () => {
+describe('handleBearerAuth() returned function with invalid fields in the token', () => {
+  const issuer = 'https://example.com';
+  const requiredScopes = ['read', 'write'];
+  const audience = 'test-audience';
   const verifyAccessToken = vi.fn<VerifyAccessTokenFunction>(async (token: string) => {
     if (token === 'valid-token') {
-      return { clientId: 'client-id', scopes: ['read', 'write'], token };
+      return { issuer, clientId: 'client-id', scopes: ['read', 'write'], token };
     }
     throw new MCPAuthJwtVerificationError('invalid_jwt');
   });
-  const requiredScopes = ['read', 'write'];
-  const audience = 'test-audience';
   const handler = handleBearerAuth({
     verifyAccessToken,
+    issuer,
     requiredScopes,
     audience,
+  });
+
+  it('should respond with an error if the issuer does not match', async () => {
+    const response = httpMocks.createResponse();
+    verifyAccessToken.mockImplementationOnce(async (token: string) => {
+      if (token === 'valid-token') {
+        return {
+          issuer: 'https://wrong-issuer.com',
+          clientId: 'client-id',
+          scopes: ['read', 'write'],
+          token,
+          audience,
+        };
+      }
+      throw new MCPAuthJwtVerificationError('invalid_jwt');
+    });
+    await handler(
+      httpMocks.createRequest({ headers: { authorization: 'Bearer valid-token' } }),
+      response,
+      noop
+    );
+
+    expect(response.statusCode).toBe(401);
+    expect(response._getJSONData()).toEqual({
+      error: 'invalid_issuer',
+      error_description: 'The token issuer does not match the expected issuer.',
+    });
   });
 
   it('should respond with an error if the audience does not match', async () => {
@@ -155,6 +189,7 @@ describe('handleBearerAuth() returned function with invalid audience or scopes',
     verifyAccessToken.mockImplementationOnce(async (token: string) => {
       if (token === 'valid-token') {
         return {
+          issuer,
           clientId: 'client-id',
           scopes: ['read', 'write'],
           token,
@@ -181,7 +216,7 @@ describe('handleBearerAuth() returned function with invalid audience or scopes',
     const response = httpMocks.createResponse();
     verifyAccessToken.mockImplementationOnce(async (token: string) => {
       if (token === 'valid-token') {
-        return { clientId: 'client-id', scopes: ['read'], token, audience };
+        return { issuer, clientId: 'client-id', scopes: ['read'], token, audience };
       }
       throw new MCPAuthJwtVerificationError('invalid_jwt');
     });
@@ -201,16 +236,18 @@ describe('handleBearerAuth() returned function with invalid audience or scopes',
 });
 
 describe('handleBearerAuth() returned function with valid token', () => {
+  const issuer = 'https://example.com';
   const requiredScopes = ['read', 'write'];
   const audience = 'test-audience';
   const verifyAccessToken = vi.fn<VerifyAccessTokenFunction>(async (token: string) => {
     if (token === 'valid-token') {
-      return { clientId: 'client-id', scopes: requiredScopes, token, audience };
+      return { issuer, clientId: 'client-id', scopes: requiredScopes, token, audience };
     }
     throw new MCPAuthJwtVerificationError('invalid_jwt');
   });
   const handler = handleBearerAuth({
     verifyAccessToken,
+    issuer,
     requiredScopes,
     audience,
   });
@@ -237,6 +274,7 @@ describe('handleBearerAuth() returned function with valid token', () => {
     const next = vi.fn();
     await handler(request, response, next);
     expect(request.auth).toEqual({
+      issuer,
       clientId: 'client-id',
       scopes: ['read', 'write'],
       token: 'valid-token',
@@ -257,6 +295,7 @@ describe('handleBearerAuth() returned function with error handling', () => {
     });
     const handler = handleBearerAuth({
       verifyAccessToken,
+      issuer: 'https://example.com',
       requiredScopes: [],
       audience: undefined,
       showErrorDetails: true,
@@ -283,6 +322,7 @@ describe('handleBearerAuth() returned function with error handling', () => {
 
     const configErrorHandler = handleBearerAuth({
       verifyAccessToken: verifyAccessTokenConfigError,
+      issuer: 'https://example.com',
       requiredScopes: [],
       audience: undefined,
     });
@@ -304,6 +344,7 @@ describe('handleBearerAuth() returned function with error handling', () => {
     });
     const handler = handleBearerAuth({
       verifyAccessToken,
+      issuer: 'https://example.com',
       requiredScopes: [],
       audience: undefined,
     });
@@ -312,5 +353,44 @@ describe('handleBearerAuth() returned function with error handling', () => {
     });
     const response = httpMocks.createResponse();
     await expect(handler(request, response, noop)).rejects.toThrow('Unexpected error');
+  });
+
+  it('should show error details for `MCPAuthBearerAuthError`', async () => {
+    const issuer = 'https://example.com';
+    const requiredScopes = ['read', 'write'];
+    const audience = 'test-audience';
+    const verifyAccessToken = vi.fn<VerifyAccessTokenFunction>(async (token: string) => {
+      if (token === 'valid-token') {
+        return {
+          issuer: issuer + '1',
+          clientId: 'client-id',
+          scopes: requiredScopes,
+          token,
+          audience,
+        };
+      }
+      throw new MCPAuthJwtVerificationError('invalid_jwt');
+    });
+    const handler = handleBearerAuth({
+      verifyAccessToken,
+      issuer,
+      requiredScopes,
+      audience,
+      showErrorDetails: true,
+    });
+
+    const request = httpMocks.createRequest({ headers: { authorization: 'Bearer valid-token' } });
+    const response = httpMocks.createResponse();
+    await handler(request, response, noop);
+    expect(response.statusCode).toBe(401);
+    expect(response._getJSONData()).toEqual({
+      error: 'invalid_issuer',
+      error_description: 'The token issuer does not match the expected issuer.',
+      cause: {
+        expected: issuer,
+        actual: issuer + '1',
+      },
+    });
+    expect(verifyAccessToken).toHaveBeenCalledWith('valid-token');
   });
 });

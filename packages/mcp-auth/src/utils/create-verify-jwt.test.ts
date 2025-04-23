@@ -37,9 +37,9 @@ describe('createVerifyJwt() returning error handling', () => {
   it('should throw an error if the JWT payload does not contain the `client_id` field or it is malformed', async () => {
     const verifyJwt = createVerifyJwt(() => secret);
     const jwts = await Promise.all([
-      createJwt({ sub: 'user12345' }),
-      createJwt({ client_id: 12_345, sub: 'user12345' }),
-      createJwt({ client_id: '', sub: 'user12345' }),
+      createJwt({ iss: 'https://logto.io/', sub: 'user12345' }),
+      createJwt({ iss: 'https://logto.io/', client_id: 12_345, sub: 'user12345' }),
+      createJwt({ iss: 'https://logto.io/', client_id: '', sub: 'user12345' }),
     ]);
     const error = new MCPAuthJwtVerificationError('invalid_jwt', {
       cause: 'The JWT payload does not contain the `client_id` field or it is malformed.',
@@ -51,9 +51,9 @@ describe('createVerifyJwt() returning error handling', () => {
   it('should throw an error if the JWT payload does not contain the `sub` field or it is malformed', async () => {
     const verifyJwt = createVerifyJwt(() => secret);
     const jwts = await Promise.all([
-      createJwt({ client_id: 'client12345' }),
-      createJwt({ client_id: 'client12345', sub: 12_345 }),
-      createJwt({ client_id: 'client12345', sub: '' }),
+      createJwt({ iss: 'https://logto.io/', client_id: 'client12345' }),
+      createJwt({ iss: 'https://logto.io/', client_id: 'client12345', sub: 12_345 }),
+      createJwt({ iss: 'https://logto.io/', client_id: 'client12345', sub: '' }),
     ]);
     const error = new MCPAuthJwtVerificationError('invalid_jwt', {
       cause: 'The JWT payload does not contain the `sub` field or it is malformed.',
@@ -64,6 +64,7 @@ describe('createVerifyJwt() returning error handling', () => {
 });
 
 const expectJwtPayload = (jwt: string, claims: Record<string, unknown>, scopes: string[]) => ({
+  issuer: claims.iss,
   clientId: claims.client_id,
   scopes,
   token: jwt,
@@ -84,6 +85,7 @@ describe('createVerifyJwt() returning normal behavior', () => {
   it('should return the verified JWT payload with string `scope` field', async () => {
     const verifyJwt = createVerifyJwt(() => secret);
     const claims = Object.freeze({
+      iss: 'https://logto.io/',
       client_id: 'client12345',
       sub: 'user12345',
       scope: 'read write',
@@ -97,6 +99,7 @@ describe('createVerifyJwt() returning normal behavior', () => {
   it('should return the verified JWT payload with array `scope` field', async () => {
     const verifyJwt = createVerifyJwt(() => secret);
     const claims = Object.freeze({
+      iss: 'https://logto.io/',
       client_id: 'client12345',
       sub: 'user12345',
       scope: ['read', 'write'],
@@ -109,6 +112,7 @@ describe('createVerifyJwt() returning normal behavior', () => {
   it('should return the verified JWT payload with `scopes` field when `scope` is not present', async () => {
     const verifyJwt = createVerifyJwt(() => secret);
     const claims = Object.freeze({
+      iss: 'https://logto.io/',
       client_id: 'client12345',
       sub: 'user12345',
       scopes: ['read', 'write'],
@@ -121,6 +125,7 @@ describe('createVerifyJwt() returning normal behavior', () => {
   it('should return the verified JWT payload when `scope` and `scopes` are not present', async () => {
     const verifyJwt = createVerifyJwt(() => secret);
     const claims = Object.freeze({
+      iss: 'https://logto.io/',
       client_id: 'client12345',
       sub: 'user12345',
       aud: 'audience12345',
