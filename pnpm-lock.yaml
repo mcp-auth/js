@@ -87,9 +87,6 @@ importers:
       vitest:
         specifier: ^3.1.1
         version: 3.1.1(@types/node@20.17.30)
-      vitest-fetch-mock:
-        specifier: ^0.4.5
-        version: 0.4.5(vitest@3.1.1(@types/node@20.17.30))
     optionalDependencies:
       http-proxy-middleware:
         specifier: ^3.0.5
@@ -3032,12 +3029,6 @@ packages:
         optional: true
       yaml:
         optional: true
-
-  vitest-fetch-mock@0.4.5:
-    resolution: {integrity: sha512-nhWdCQIGtaSEUVl96pMm0WggyDGPDv5FUy/Q9Hx3cs2RGmh3Q/uRsLClGbdG3kXBkJ3br5yTUjB2MeW25TwdOA==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      vitest: '>=2.0.0'
 
   vitest@3.1.1:
     resolution: {integrity: sha512-kiZc/IYmKICeBAZr9DQ5rT7/6bD9G7uqQEki4fxazi1jdVl2mWGzedtBs5s6llz59yQhVb7FFY2MbHzHCnT79Q==}
@@ -6253,10 +6244,6 @@ snapshots:
     optionalDependencies:
       '@types/node': 20.17.30
       fsevents: 2.3.3
-
-  vitest-fetch-mock@0.4.5(vitest@3.1.1(@types/node@20.17.30)):
-    dependencies:
-      vitest: 3.1.1(@types/node@20.17.30)
 
   vitest@3.1.1(@types/node@20.17.30):
     dependencies:

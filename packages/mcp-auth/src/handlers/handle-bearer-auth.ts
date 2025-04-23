@@ -184,7 +184,7 @@ export const handleBearerAuth = ({
     throw new TypeError(`\`issuer\` must be a valid URL.`);
   }
 
-  return async (request, response, next) => {
+  const bearerAuthHandler: RequestHandler = async function (request, response, next) {
     try {
       const token = getBearerTokenFromHeaders(request.headers);
       const authInfo = await verifyAccessToken(token);
@@ -231,4 +231,6 @@ export const handleBearerAuth = ({
       handleError(error, response, showErrorDetails);
     }
   };
+
+  return bearerAuthHandler;
 };
