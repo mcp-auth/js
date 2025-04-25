@@ -1,15 +1,32 @@
 import { cond, condObject } from '@silverhand/essentials';
 
+/**
+ * Base class for all mcp-auth errors.
+ *
+ * It provides a standardized way to handle errors related to MCP authentication and authorization.
+ */
 export class MCPAuthError extends Error {
   name = 'MCPAuthError';
 
   constructor(
+    /**
+     * The error code in snake_case format.
+     */
     public readonly code: string,
+    /**
+     * A human-readable description of the error.
+     */
     message: string
   ) {
     super(message);
   }
 
+  /**
+   * Converts the error to a HTTP response friendly JSON format.
+   *
+   * @param showCause Whether to include the cause of the error in the JSON response.
+   * Defaults to `false`.
+   */
   toJson(showCause = false): Record<string, unknown> {
     return condObject({
       error: this.code,
@@ -19,6 +36,9 @@ export class MCPAuthError extends Error {
   }
 }
 
+/**
+ * Error thrown when there is a configuration issue with mcp-auth.
+ */
 export class MCPAuthConfigError extends MCPAuthError {
   name = 'MCPAuthConfigError';
 }
@@ -36,6 +56,9 @@ export const authServerErrorDescription: Readonly<Record<AuthServerErrorCode, st
       'The server metadata does not contain a JWKS URI, which is required for JWT verification.',
   });
 
+/**
+ * Error thrown when there is an issue with the remote authorization server.
+ */
 export class MCPAuthAuthServerError extends MCPAuthError {
   name = 'MCPAuthAuthServerError';
 
@@ -79,6 +102,9 @@ export type MCPAuthBearerAuthErrorDetails = {
   actual?: unknown;
 };
 
+/**
+ * Error thrown when there is an issue when authenticating with Bearer tokens.
+ */
 export class MCPAuthBearerAuthError extends MCPAuthError {
   name = 'MCPAuthBearerAuthError';
 
@@ -112,6 +138,9 @@ export const jwtVerificationErrorDescription: Readonly<
   jwt_expired: 'The provided JWT has expired.',
 });
 
+/**
+ * Error thrown when there is an issue when verifying JWT tokens.
+ */
 export class MCPAuthJwtVerificationError extends MCPAuthError {
   name = 'MCPAuthJwtVerificationError';
 

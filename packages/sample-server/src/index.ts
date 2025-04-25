@@ -71,24 +71,28 @@ app.use(
   })
 );
 
-app.post('/mcp', mcpAuth.bearerAuth('jwt'), async (request, response) => {
-  console.log('Received MCP request:', request.body);
-  try {
-    await transport.handleRequest(request, response, request.body);
-  } catch (error) {
-    console.error('Error handling MCP request:', error);
-    if (!response.headersSent) {
-      response.status(500).json({
-        jsonrpc: '2.0',
-        error: {
-          code: -32_603,
-          message: 'Internal server error',
-        },
-        id: null,
-      });
+app.post(
+  '/mcp',
+  mcpAuth.bearerAuth('jwt', { requiredScopes: ['read', 'write'] }),
+  async (request, response) => {
+    console.log('Received MCP request:', request.body);
+    try {
+      await transport.handleRequest(request, response, request.body);
+    } catch (error) {
+      console.error('Error handling MCP request:', error);
+      if (!response.headersSent) {
+        response.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32_603,
+            message: 'Internal server error',
+          },
+          id: null,
+        });
+      }
     }
   }
-});
+);
 
 try {
   await server.connect(transport);

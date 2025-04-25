@@ -101,6 +101,21 @@ declare module 'express-serve-static-core' {
  *
  * This function should throw an {@link MCPAuthJwtVerificationError} if the token is invalid,
  * or return an {@link AuthInfo} object if the token is valid.
+ *
+ * For example, if you have a JWT verification function, it should at least check the token's
+ * signature, validate its expiration, and extract the necessary claims to return an `AuthInfo`
+ * object.
+ *
+ * **Note:** There's no need to verify the following fields in the token, as they will be checked
+ * by the handler:
+ *
+ * - `iss` (issuer)
+ * - `aud` (audience)
+ * - `scope` (scopes)
+ *
+ * @param token The access token string to verify.
+ * @returns A promise that resolves to an {@link AuthInfo} object or a synchronous value if the
+ * token is valid.
  */
 export type VerifyAccessTokenFunction = (token: string) => MaybePromise<AuthInfo>;
 
@@ -110,11 +125,42 @@ export type BearerAuthConfig = {
    *
    * This function should throw an {@link MCPAuthJwtVerificationError} if the token is invalid,
    * or return an {@link AuthInfo} object if the token is valid.
+   *
+   * @see {@link VerifyAccessTokenFunction} for more details.
    */
   verifyAccessToken: VerifyAccessTokenFunction;
+  /**
+   * The expected issuer of the access token (`iss` claim). This should be the URL of the
+   * authorization server that issued the token.
+   */
   issuer: string;
+  /**
+   * The expected audience of the access token (`aud` claim). This is typically the resource server
+   * (API) that the token is intended for. If not provided, the audience check will be skipped.
+   *
+   * **Note:** If your authorization server does not support Resource Indicators (RFC 8707),
+   * you can omit this field since the audience may not be relevant.
+   *
+   * @see https://datatracker.ietf.org/doc/html/rfc8707
+   */
   audience?: string;
+  /**
+   * An array of required scopes that the access token must have. If the token does not contain
+   * all of these scopes, an error will be thrown.
+   *
+   * **Note:** The handler will check the `scope` claim in the token, which may be a space-
+   * separated string or an array of strings, depending on the authorization server's
+   * implementation. If the `scope` claim is not present, the handler will check the `scopes` claim
+   * if available.
+   */
   requiredScopes?: string[];
+  /**
+   * Whether to show detailed error information in the response. This is useful for debugging
+   * during development, but should be disabled in production to avoid leaking sensitive
+   * information.
+   *
+   * @default false
+   */
   showErrorDetails?: boolean;
 };
 
@@ -167,6 +213,26 @@ const handleError = (error: unknown, response: Response, showErrorDetails = fals
   throw error;
 };
 
+/**
+ * Creates a middleware function for handling Bearer auth in an Express application.
+ *
+ * This middleware extracts the Bearer token from the `Authorization` header, verifies it using the
+ * provided `verifyAccessToken` function, and checks the issuer, audience, and required scopes.
+ *
+ * - If the token is valid, it adds the auth information to the `request.auth` property;
+ * if not, it responds with an appropriate error message.
+ * - If access token verification fails, it responds with a 401 Unauthorized error.
+ * - If the token does not have the required scopes, it responds with a 403 Forbidden error.
+ * - If unexpected errors occur during the auth process, the middleware will re-throw them.
+ *
+ * **Note:**  The `request.auth` object will contain extended fields compared to the standard
+ * {@link AuthInfo} interface defined in the `@modelcontextprotocol/sdk` module. See the extended
+ * interface in this file for details.
+ *
+ * @param param0 Configuration for the Bearer auth handler.
+ * @returns A middleware function for Express that handles Bearer auth.
+ * @see {@link BearerAuthConfig} for the configuration options.
+ */
 export const handleBearerAuth = ({
   verifyAccessToken,
   issuer,
@@ -227,7 +293,7 @@ export const handleBearerAuth = ({
       request.auth = authInfo;
       next();
     } catch (error) {
-      console.error('Error during Bearer authentication:', error);
+      console.error('Error during Bearer auth:', error);
       handleError(error, response, showErrorDetails);
     }
   };

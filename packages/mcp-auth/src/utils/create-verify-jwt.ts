@@ -15,8 +15,29 @@ const getScopes = (value: unknown): string[] | undefined => {
   }
 };
 
+/**
+ * Creates a function to verify JWT access tokens using the provided key retrieval function
+ * and options.
+ *
+ * @returns A function that verifies JWT access tokens and returns an {@link AuthInfo} object if
+ * the token is valid. It requires the JWT to contain the fields `iss`, `client_id`, and `sub` in
+ * its payload, and it can optionally contain `scope` or `scopes` fields. The function uses the
+ * `jose` library under the hood to perform the JWT verification.
+ *
+ * @see {@link VerifyAccessTokenFunction} for the type definition of the returned function.
+ */
 export const createVerifyJwt = (
+  /**
+   * The function to retrieve the key used to verify the JWT.
+   *
+   * @see {@link JWTVerifyGetKey} for the type definition of the key retrieval function.
+   */
   getKey: JWTVerifyGetKey,
+  /**
+   * Optional JWT verification options.
+   *
+   * @see {@link JWTVerifyOptions} for the type definition of the options.
+   */
   options?: JWTVerifyOptions
 ): VerifyAccessTokenFunction => {
   const verifyJwt = async function (token: string): Promise<AuthInfo> {
