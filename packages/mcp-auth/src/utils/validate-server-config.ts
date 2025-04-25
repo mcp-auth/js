@@ -1,6 +1,9 @@
 import { type AuthServerConfig } from '../types/auth-server.js';
 import { camelCaseAuthorizationServerMetadataSchema } from '../types/oauth.js';
 
+/**
+ * The codes for errors that can occur when validating the authorization server metadata.
+ */
 export type AuthServerConfigErrorCode =
   | 'invalid_server_metadata'
   | 'code_response_type_not_supported'
@@ -21,9 +24,21 @@ const authServerConfigErrorDescription: Readonly<Record<AuthServerConfigErrorCod
       'The server does not support the "S256" code challenge method for Proof Key for Code Exchange (PKCE).',
   });
 
+/**
+ * Represents an error that occurs during the validation of the authorization server metadata.
+ */
 export type AuthServerConfigError = {
+  /**
+   * The code representing the specific validation error.
+   */
   code: AuthServerConfigErrorCode;
+  /**
+   * A human-readable description of the error.
+   */
   description: string;
+  /**
+   * An optional cause of the error, typically an instance of `Error` that provides more context.
+   */
   cause?: Error;
 };
 
@@ -33,6 +48,9 @@ const createError = (code: AuthServerConfigErrorCode, cause?: Error): AuthServer
   cause,
 });
 
+/**
+ * The codes for warnings that can occur when validating the authorization server metadata.
+ */
 export type AuthServerConfigWarningCode = 'dynamic_registration_not_supported';
 
 const authServerConfigWarningDescription: Readonly<Record<AuthServerConfigWarningCode, string>> =
@@ -41,8 +59,17 @@ const authServerConfigWarningDescription: Readonly<Record<AuthServerConfigWarnin
       'Dynamic Client Registration (RFC 7591) is not supported by the server.',
   });
 
+/**
+ * Represents a warning that occurs during the validation of the authorization server metadata.
+ */
 export type AuthServerConfigWarning = {
+  /**
+   * The code representing the specific validation warning.
+   */
   code: AuthServerConfigWarningCode;
+  /**
+   * A human-readable description of the warning.
+   */
   description: string;
 };
 
@@ -53,15 +80,28 @@ const createWarning = (code: AuthServerConfigWarningCode): AuthServerConfigWarni
 
 type AuthServerConfigValidationResult =
   | {
+      /** Indicates that the server configuration is valid. Warnings may still be present. */
       isValid: true;
+      /** An array of warnings encountered during validation. */
       warnings: AuthServerConfigWarning[];
     }
   | {
+      /** Indicates that the server configuration is invalid. */
       isValid: false;
+      /** An array of errors encountered during validation. */
       errors: AuthServerConfigError[];
+      /** An array of warnings encountered during validation. */
       warnings: AuthServerConfigWarning[];
     };
 
+/**
+ * Validates the authorization server configuration against the MCP specification.
+ *
+ * @param param0 The configuration object containing the server metadata to validate.
+ * @returns An object indicating whether the configuration is valid (`{ isValid: true }`) or
+ * invalid (`{ isValid: false }`), along with any errors or warnings encountered during validation.
+ * @see {@link AuthServerConfigValidationResult} for the structure of the return value.
+ */
 export const validateServerConfig = ({
   metadata,
 }: Readonly<AuthServerConfig>): AuthServerConfigValidationResult => {

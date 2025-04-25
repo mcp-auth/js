@@ -16,12 +16,84 @@ export type ProxyModeOverrides = Partial<{
 }>;
 
 export type ProxyModeConfig = {
+  /**
+   * The base URL of the MCP server that will act as a proxy for the remote authorization server.
+   * This URL is used to construct the full URLs in the OAuth 2.0 Authorization Server Metadata
+   * response.
+   *
+   * It should be the URL where the MCP server is hosted, including the protocol (e.g., `https://example.com`).
+   */
   baseUrl: string;
+  /**
+   * The metadata of the remote authorization server in camelCase format. It will be used for
+   * the response to the OAuth 2.0 Authorization Server Metadata endpoint and for proxying requests
+   * to the authorization server endpoints.
+   *
+   * The metadata can be provided by:
+   * - Using the `fetchServerConfig` or `fetchServerConfigByWellKnownUrl` utility functions to fetch
+   * the metadata from a remote server.
+   * - Manually inputting the metadata in camelCase format.
+   */
   metadata: CamelCaseAuthorizationServerMetadata;
+  /**
+   * The overrides for the proxy mode configuration. These allow customization of the paths used
+   * by the proxy router for the authorization server endpoints.
+   *
+   * If a path is not provided, the default paths from {@link defaultPaths} will be used.
+   */
   overrides?: ProxyModeOverrides;
+  /**
+   * Additional options for the proxy middleware (`http-proxy-middleware`).
+   * These options can be used to customize the behavior of the proxy, such as changing the target,
+   * modifying headers, or handling errors.
+   *
+   * **Caution**: Be careful when overriding the existing options, especially the `on.proxyRes`
+   * handler, as they may impact the normal operation of the proxy.
+   */
   proxyOptions?: Options<ExpressRequest, ExpressResponse>;
 };
 
+/**
+ * Creates a proxy router that serves the OAuth 2.0 Authorization Server Metadata and proxies
+ * requests to the remote authorization server endpoints.
+ *
+ * This router is designed to work in a proxy mode, where the MCP server acts as an
+ * OAuth authorization server for MCP clients, forwarding requests to a remote
+ * authorization server.
+ *
+ * The router provides the following endpoints:
+ *
+ * - `/.well-known/oauth-authorization-server`: Returns the OAuth 2.0 Authorization Server
+ *   Metadata. It includes transpiled metadata from the remote authorization server, updating the
+ *   base URLs and paths to match the MCP server's configuration.
+ * - Proxy endpoints for the authorization, token, registration, and revocation paths defined in
+ *   the `metadata` parameter. If some of optional endpoints are not defined in the metadata,
+ *   they will not be proxied.
+ *
+ * @remarks
+ * The metadata can be provided by:
+ * - Using the `fetchServerConfig` or `fetchServerConfigByWellKnownUrl` utility functions to fetch
+ * the metadata from a remote server.
+ * - Manually inputting the metadata in camelCase format.
+ *
+ * @example
+ * ```ts
+ * import { createProxyRouter, fetchServerConfig } from 'mcp-auth';
+ * import express from 'express';
+ *
+ * const metadata = await fetchServerConfig('https://logto.io', { type: 'oauth' });
+ * const proxyRouter = createProxyRouter({
+ *   baseUrl: 'https://your-mcp-server.com',
+ *   metadata,
+ * });
+ * const app = express();
+ * app.use('/auth', proxyRouter);
+ * ```
+ *
+ * @param param0 The configuration for the proxy router.
+ * @returns An Express router that serves the OAuth 2.0 Authorization Server Metadata and proxies
+ * requests to the remote authorization server endpoints.
+ */
 export const createProxyRouter = ({
   baseUrl,
   metadata,

@@ -5,7 +5,7 @@ import { MCPAuthAuthServerError, MCPAuthConfigError } from '../errors.js';
 import { type AuthServerConfig, type AuthServerType } from '../types/auth-server.js';
 import {
   type AuthorizationServerMetadata,
-  authorizationServerMetadataSchemaGuard,
+  authorizationServerMetadataSchema,
 } from '../types/oauth.js';
 import { type MaybePromise } from '../types/promise.js';
 
@@ -27,14 +27,35 @@ const getOidcWellKnownUrl = (issuer: string) =>
   appendPath(new URL(issuer), serverMetadataPaths.oidc);
 
 type ServerMetadataConfig = {
+  /** The type of the remote authorization server. */
   type: AuthServerType;
-
+  /**
+   * A function to transpile the fetched metadata into the expected format. This is useful if the
+   * server metadata does not conform to the standard schema or if you want to customize the
+   * transformation of the metadata.
+   */
   transpileData?: (
     // eslint-disable-next-line @typescript-eslint/ban-types
     data: object
   ) => MaybePromise<AuthorizationServerMetadata | Record<string, unknown>>;
 };
 
+/**
+ * Fetches the server configuration from the provided well-known URL and validates it against the
+ * MCP specification.
+ *
+ * If the server metadata does not conform to the expected schema, but you are sure that it is
+ * compatible, you can define a `transpileData` function to transform the metadata into the
+ * expected format.
+ *
+ * @param wellKnownUrl The well-known URL to fetch the server configuration from. This can be a
+ * string or a URL object.
+ * @param config The configuration object containing the server type and optional transpile function.
+ * @returns A promise that resolves to the server configuration.
+ * @throws {MCPAuthConfigError} if the fetch operation fails.
+ * @throws {MCPAuthAuthServerError} if the server metadata is invalid or does not match the
+ * MCP specification.
+ */
 export const fetchServerConfigByWellKnownUrl = async (
   wellKnownUrl: string | URL,
   { type, transpileData }: ServerMetadataConfig
@@ -57,9 +78,7 @@ export const fetchServerConfigByWellKnownUrl = async (
     });
   }
 
-  const parsed = authorizationServerMetadataSchemaGuard.safeParse(
-    transpileData?.(metadata) ?? metadata
-  );
+  const parsed = authorizationServerMetadataSchema.safeParse(transpileData?.(metadata) ?? metadata);
 
   if (!parsed.success) {
     throw new MCPAuthAuthServerError('invalid_server_metadata', {
@@ -74,6 +93,37 @@ export const fetchServerConfigByWellKnownUrl = async (
   };
 };
 
+/**
+ * Fetches the server configuration according to the issuer and authorization server type.
+ *
+ * This function automatically determines the well-known URL based on the server type, as OAuth and
+ * OpenID Connect servers have different conventions for their metadata endpoints.
+ *
+ * @see {@link fetchServerConfigByWellKnownUrl} for the underlying implementation.
+ * @see {@link https://www.rfc-editor.org/rfc/rfc8414} for the OAuth 2.0 Authorization Server Metadata
+ * specification.
+ * @see {@link https://openid.net/specs/openid-connect-discovery-1_0.html} for the OpenID Connect
+ * Discovery specification.
+ *
+ * @example
+ * ```ts
+ * import { fetchServerConfig } from 'mcp-auth';
+ * // Fetching OAuth server configuration
+ * // This will fetch the metadata from `https://auth.logto.io/.well-known/oauth-authorization-server/oauth`
+ * const oauthConfig = await fetchServerConfig('https://auth.logto.io/oauth', { type: 'oauth' });
+ *
+ * // Fetching OpenID Connect server configuration
+ * // This will fetch the metadata from `https://auth.logto.io/oidc/.well-known/openid-configuration`
+ * const oidcConfig = await fetchServerConfig('https://auth.logto.io/oidc', { type: 'oidc' });
+ *```
+ *
+ * @param issuer The issuer URL of the authorization server.
+ * @param config The configuration object containing the server type and optional transpile function.
+ * @returns A promise that resolves to the server configuration.
+ * @throws {MCPAuthConfigError} if the fetch operation fails.
+ * @throws {MCPAuthAuthServerError} if the server metadata is invalid or does not match the
+ * MCP specification.
+ */
 export const fetchServerConfig = async (
   issuer: string,
   config: ServerMetadataConfig

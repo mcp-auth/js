@@ -1,7 +1,12 @@
 import camelcaseKeys from 'camelcase-keys';
 import { z } from 'zod';
 
-const authorizationServerMetadataSchema = Object.freeze({
+/**
+ * Zod schema for OAuth 2.0 Authorization Server Metadata as defined in RFC 8414. This schema is
+ * not intended to be used directly for validation, but rather as a reference for the actual
+ * zod schemata that will be used in the application.
+ */
+const authorizationServerMetadataObject = Object.freeze({
   /**
    * The authorization server's issuer identifier, which is a URL that uses the `https` scheme and
    * has no query or fragment components.
@@ -40,6 +45,16 @@ const authorizationServerMetadataSchema = Object.freeze({
    * [[RFC7591](https://www.rfc-editor.org/rfc/rfc7591)].
    */
   response_types_supported: z.array(z.string()),
+  /**
+   * JSON array containing a list of the OAuth 2.0 `response_mode` values that this
+   * authorization server supports, as specified in "OAuth 2.0 Multiple Response
+   * Type Encoding Practices"
+   * [[OAuth.Responses](https://datatracker.ietf.org/doc/html/rfc8414#ref-OAuth.Responses)].
+   *
+   * If omitted, the default is `["query", "fragment"]`. The response mode value `"form_post"` is
+   * also defined in "OAuth 2.0 Form Post Response Mode"
+   * [[OAuth.FormPost](https://datatracker.ietf.org/doc/html/rfc8414#ref-OAuth.Post)].
+   */
   response_modes_supported: z.array(z.string()).optional(),
   /**
    * JSON array containing a list of the OAuth 2.0 grant type values that this authorization server
@@ -77,24 +92,33 @@ const authorizationServerMetadataSchema = Object.freeze({
 });
 
 /**
+ * Zod schema for OAuth 2.0 Authorization Server Metadata as defined in RFC 8414.
+ *
+ * @see https://datatracker.ietf.org/doc/html/rfc8414
+ */
+export const authorizationServerMetadataSchema = z.object(authorizationServerMetadataObject);
+
+/**
  * Schema for OAuth 2.0 Authorization Server Metadata as defined in RFC 8414.
  *
  * @see https://datatracker.ietf.org/doc/html/rfc8414
  */
-export const authorizationServerMetadataSchemaGuard = z.object(authorizationServerMetadataSchema);
+export type AuthorizationServerMetadata = z.infer<typeof authorizationServerMetadataSchema>;
 
 /**
- * Schema for OAuth 2.0 Authorization Server Metadata
- * as defined in RFC 8414.
+ * The camelCase version of the OAuth 2.0 Authorization Server Metadata Zod schema.
  *
- * @see https://datatracker.ietf.org/doc/html/rfc8414
+ * @see {@link authorizationServerMetadataSchema} for the original schema and field information.
  */
-export type AuthorizationServerMetadata = z.infer<typeof authorizationServerMetadataSchemaGuard>;
-
 export const camelCaseAuthorizationServerMetadataSchema = z.object(
-  camelcaseKeys(authorizationServerMetadataSchema)
+  camelcaseKeys(authorizationServerMetadataObject)
 );
 
+/**
+ * The camelCase version of the OAuth 2.0 Authorization Server Metadata type.
+ *
+ * @see {@link AuthorizationServerMetadata} for the original type and field information.
+ */
 export type CamelCaseAuthorizationServerMetadata = z.infer<
   typeof camelCaseAuthorizationServerMetadataSchema
 >;
