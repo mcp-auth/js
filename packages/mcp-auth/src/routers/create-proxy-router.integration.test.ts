@@ -1,4 +1,6 @@
 import express from 'express';
+import { type Request as ExpressRequest, type Response as ExpressResponse } from 'express';
+import { type Options } from 'http-proxy-middleware';
 import nock from 'nock';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -7,17 +9,17 @@ import { defaultPaths } from '../consts/mcp.js';
 
 import { createProxyRouter } from './create-proxy-router.js';
 
+const issuer = 'https://bar.com';
+const authorizationPath = '/authorize-path';
+const tokenPath = '/token-path';
+const registrationPath = '/registration-path';
+const revocationPath = '/revocation-path';
+
+afterEach(() => {
+  nock.cleanAll();
+});
+
 describe('createProxyRouter() proxy routes', () => {
-  const issuer = 'https://bar.com';
-  const authorizationPath = '/authorize-path';
-  const tokenPath = '/token-path';
-  const registrationPath = '/registration-path';
-  const revocationPath = '/revocation-path';
-
-  afterEach(() => {
-    nock.cleanAll();
-  });
-
   it('should proxy requests to the enpoints defined in the metadata', async () => {
     const authorization = nock(issuer).get(authorizationPath).query(true).reply(303, '', {
       Location: 'https://bar.com/redirect',
@@ -94,5 +96,91 @@ describe('createProxyRouter() proxy routes', () => {
       .query({ response_type: 'code', client_id: 'client-id' });
     expect(response.status).toBe(404);
     expect(remoteServer.isDone()).toBe(false);
+  });
+
+  it('should proxy requests with query parameters', async () => {
+    const queryParams = { response_type: 'code', client_id: 'client-id' };
+    const authorization = nock(issuer)
+      .get(authorizationPath)
+      .query(queryParams)
+      .reply(303, '', { Location: 'https://bar.com/redirect' });
+    const app = express();
+    const router = createProxyRouter({
+      baseUrl: 'https://foo.com',
+      metadata: {
+        issuer,
+        authorizationEndpoint: `${issuer}${authorizationPath}`,
+        tokenEndpoint: `${issuer}${tokenPath}`,
+        responseTypesSupported: ['code', 'token'],
+      },
+    });
+    app.use(router);
+    const response = await request(app).get(defaultPaths.authorizationPath).query(queryParams);
+    expect(response.status).toBe(303);
+    expect(response.headers.location).toBe('https://bar.com/redirect');
+    expect(authorization.isDone()).toBe(true);
+  });
+
+  it('should not proxy requests when certain endpoints are not defined in metadata', async () => {
+    const authorization = nock(issuer).get(registrationPath).reply(501, 'Not Implemented');
+    const app = express();
+    const router = createProxyRouter({
+      baseUrl: 'https://foo.com',
+      metadata: {
+        issuer,
+        authorizationEndpoint: `${issuer}${authorizationPath}`,
+        tokenEndpoint: `${issuer}${tokenPath}`,
+        responseTypesSupported: ['code', 'token'],
+      },
+    });
+    app.use(router);
+    const response = await request(app).get(defaultPaths.registrationPath);
+    expect(response.status).toBe(404);
+    expect(authorization.isDone()).toBe(false);
+  });
+});
+
+describe('createProxyRouter() proxy options', () => {
+  it('should apply custom proxy options', async () => {
+    const newIssuer = 'https://baz.com';
+    const authorization = nock(newIssuer)
+      .get(authorizationPath)
+      .matchHeader('X-Custom-Header', 'CustomValue')
+      .query(true)
+      .reply(303, '', { Location: 'https://bar.com/redirect' });
+    const proxyOptions: Partial<Options<ExpressRequest, ExpressResponse>> = {
+      on: {
+        proxyReq: (proxyRequest) => {
+          // Add custom headers or modify the request here
+          proxyRequest.setHeader('X-Custom-Header', 'CustomValue');
+        },
+        proxyRes: (_, __, response) => {
+          // Modify the response if needed
+          response.setHeader('X-Proxy-Response', 'Modified');
+        },
+      },
+      target: newIssuer,
+    };
+    const app = express();
+    const router = createProxyRouter({
+      baseUrl: 'https://foo.com',
+      metadata: {
+        issuer,
+        authorizationEndpoint: `${issuer}${authorizationPath}`,
+        tokenEndpoint: `${issuer}${tokenPath}`,
+        responseTypesSupported: ['code', 'token'],
+      },
+      proxyOptions,
+    });
+    app.use(router);
+
+    const response = await request(app)
+      .get(defaultPaths.authorizationPath)
+      .query({ response_type: 'code', client_id: 'client-id' });
+
+    expect(response.status).toBe(303);
+    expect(response.headers.location).toBe('https://bar.com/redirect');
+    expect(response.headers['x-proxy-response']).toBe('Modified');
+    expect(authorization.isDone()).toBe(true);
   });
 });

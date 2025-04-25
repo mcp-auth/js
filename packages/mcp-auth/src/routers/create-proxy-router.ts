@@ -87,6 +87,8 @@ export const createProxyRouter = ({
       pathRewrite: (pathWithQuery, request) => {
         // `pathWithQuery` is the full path including query parameters, and `request.path` is the
         // parsed path without query parameters.
+        // We need to rewrite the path based on the metadata endpoints and keep the query
+        // parameters intact.
         const { path } = request;
 
         if (path === authorizationPath) {
