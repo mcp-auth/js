@@ -143,7 +143,7 @@ export class MCPAuth {
    *
    * const app = express();
    * const mcpAuth: MCPAuth; // Assume this is initialized
-   * app.use(mcpAuth.proxyRouter('https://your-mcp-server.com');
+   * app.use(mcpAuth.proxyRouter('https://your-mcp-server.com'));
    * ```
    *
    * @param baseUrl The base URL of the MCP server. It is used to construct the endpoints for the
