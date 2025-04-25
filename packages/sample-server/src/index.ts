@@ -53,12 +53,23 @@ if (MCP_AUTH_TYPE !== 'oauth' && MCP_AUTH_TYPE !== 'oidc') {
 }
 
 const mcpAuth = new MCPAuth({
-  server: await fetchServerConfig(MCP_AUTH_ISSUER, MCP_AUTH_TYPE),
+  server: await fetchServerConfig(MCP_AUTH_ISSUER, { type: MCP_AUTH_TYPE }),
 });
 
+const PORT = 3234;
 const app = express();
 
-app.use(mcpAuth.delegatedRouter());
+app.use(
+  mcpAuth.proxyRouter(`http://localhost:${PORT}`, {
+    proxyOptions: {
+      on: {
+        error: (error) => {
+          console.error('Proxy error:', error);
+        },
+      },
+    },
+  })
+);
 
 app.post('/mcp', mcpAuth.bearerAuth('jwt'), async (request, response) => {
   console.log('Received MCP request:', request.body);
@@ -78,8 +89,6 @@ app.post('/mcp', mcpAuth.bearerAuth('jwt'), async (request, response) => {
     }
   }
 });
-
-const PORT = 3234;
 
 try {
   await server.connect(transport);

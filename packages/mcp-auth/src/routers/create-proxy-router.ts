@@ -1,7 +1,7 @@
 import { condObject, pick } from '@silverhand/essentials';
 import cors from 'cors';
-import { Router } from 'express';
-import { createProxyMiddleware } from 'http-proxy-middleware';
+import { Router, type Request as ExpressRequest, type Response as ExpressResponse } from 'express';
+import { createProxyMiddleware, type Options } from 'http-proxy-middleware';
 import snakecaseKeys from 'snakecase-keys';
 
 import { defaultPaths } from '../consts/mcp.js';
@@ -19,9 +19,15 @@ export type ProxyModeConfig = {
   baseUrl: string;
   metadata: CamelCaseAuthorizationServerMetadata;
   overrides?: ProxyModeOverrides;
+  proxyOptions?: Options<ExpressRequest, ExpressResponse>;
 };
 
-export const createProxyRouter = ({ baseUrl, metadata, overrides }: ProxyModeConfig): Router => {
+export const createProxyRouter = ({
+  baseUrl,
+  metadata,
+  overrides,
+  proxyOptions,
+}: ProxyModeConfig): Router => {
   const authorizationPath = overrides?.authorizationPath ?? defaultPaths.authorizationPath;
   const tokenPath = overrides?.tokenPath ?? defaultPaths.tokenPath;
   const registrationPath =
@@ -71,29 +77,46 @@ export const createProxyRouter = ({ baseUrl, metadata, overrides }: ProxyModeCon
   const paths = [authorizationPath, tokenPath, registrationPath, revocationPath].filter(
     Boolean
   ) as string[];
+  const { origin: issuerOrigin } = new URL(metadata.issuer);
 
   router.use(
     createProxyMiddleware({
-      target: metadata.issuer,
+      target: issuerOrigin,
+      changeOrigin: true,
       pathFilter: (pathname) => paths.includes(pathname),
-      pathRewrite: (_, request) => {
+      pathRewrite: (pathWithQuery, request) => {
+        // `pathWithQuery` is the full path including query parameters, and `request.path` is the
+        // parsed path without query parameters.
+        // We need to rewrite the path based on the metadata endpoints and keep the query
+        // parameters intact.
         const { path } = request;
 
         if (path === authorizationPath) {
-          return new URL(metadata.authorizationEndpoint).pathname;
+          return pathWithQuery.replace(path, new URL(metadata.authorizationEndpoint).pathname);
         }
 
         if (path === tokenPath) {
-          return new URL(metadata.tokenEndpoint).pathname;
+          return pathWithQuery.replace(path, new URL(metadata.tokenEndpoint).pathname);
         }
 
-        if (registrationPath && path === registrationPath) {
-          return metadata.registrationEndpoint && new URL(metadata.registrationEndpoint).pathname;
+        if (registrationPath && path === registrationPath && metadata.registrationEndpoint) {
+          return pathWithQuery.replace(path, new URL(metadata.registrationEndpoint).pathname);
         }
 
-        if (revocationPath && path === revocationPath) {
-          return metadata.revocationEndpoint && new URL(metadata.revocationEndpoint).pathname;
+        if (revocationPath && path === revocationPath && metadata.revocationEndpoint) {
+          return pathWithQuery.replace(path, new URL(metadata.revocationEndpoint).pathname);
         }
+      },
+      ...proxyOptions, // Order matters! Don't override `on` handlers since we need to modify the `location` header.
+      on: {
+        proxyRes: (proxyResponse) => {
+          const { location } = proxyResponse.headers;
+          if (location) {
+            // eslint-disable-next-line @silverhand/fp/no-mutation -- Business need
+            proxyResponse.headers.location = new URL(location, issuerOrigin).href;
+          }
+        },
+        ...proxyOptions?.on,
       },
     })
   );
