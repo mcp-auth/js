@@ -138,6 +138,52 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
 
+  packages/todo-server:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.10.1
+        version: 1.10.1
+      dotenv:
+        specifier: ^16.5.0
+        version: 16.5.0
+      express:
+        specifier: 5.0.1
+        version: 5.0.1
+      http-proxy-middleware:
+        specifier: ^3.0.5
+        version: 3.0.5
+      mcp-auth:
+        specifier: link:../mcp-auth
+        version: link:../mcp-auth
+      zod:
+        specifier: ^3.24.3
+        version: 3.24.3
+    devDependencies:
+      '@silverhand/eslint-config':
+        specifier: ^6.0.1
+        version: 6.0.1(eslint@8.57.0)(prettier@3.5.3)(typescript@5.8.3)
+      '@silverhand/ts-config':
+        specifier: ^6.0.0
+        version: 6.0.0(typescript@5.8.3)
+      '@types/express':
+        specifier: ^5.0.1
+        version: 5.0.1
+      '@types/node':
+        specifier: ^20.17.0
+        version: 20.17.30
+      eslint:
+        specifier: ^8.57.0
+        version: 8.57.0
+      prettier:
+        specifier: ^3.5.3
+        version: 3.5.3
+      tsup:
+        specifier: ^8.4.0
+        version: 8.4.0(postcss@8.5.3)(typescript@5.8.3)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+
 packages:
 
   '@ampproject/remapping@2.3.0':
