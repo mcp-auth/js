@@ -1,0 +1,38 @@
+name: Codecov
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: codecov-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  codecov:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # To ensure we have enough history for code coverage
+
+      - name: Setup Node and pnpm
+        uses: silverhand-io/actions-node-pnpm-run-steps@v5
+        with:
+          pnpm-version: 10.8.0
+          node-version: 20
+
+      - name: Test
+        working-directory: packages/mcp-auth
+        run: pnpm test --coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: true
+          directory: packages/mcp-auth/coverage
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
