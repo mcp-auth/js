@@ -5,7 +5,6 @@ import snakecaseKeys from 'snakecase-keys';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { defaultPaths } from './consts/mcp.js';
 import { MCPAuth, serverMetadataPaths, type MCPAuthConfig } from './index.js';
 
 afterEach(() => {
@@ -28,39 +27,6 @@ describe('MCPAuth class (routers)', () => {
     registrationEndpoint: `${issuer}${registrationPath}`,
     revocationEndpoint: `${issuer}${revocationPath}`,
   } satisfies MCPAuthConfig['server']['metadata']);
-
-  it('should create a proxy router with the correct base URL and metadata', async () => {
-    const auth = new MCPAuth({ server: { type: 'oauth', metadata: serverMetadata } });
-    const router = auth.proxyRouter('https://proxy.example.com');
-    const authorization = nock(issuer).get(authorizationPath).query(true).reply(303, '', {
-      Location: 'https://example.com/redirect',
-    });
-    const app = express();
-    app.use(router);
-
-    // Validate metadata transpilation
-    await request(app)
-      .get(serverMetadataPaths.oauth)
-      .expect(200, {
-        issuer,
-        authorization_endpoint: `https://proxy.example.com${defaultPaths.authorizationPath}`,
-        token_endpoint: `https://proxy.example.com${defaultPaths.tokenPath}`,
-        registration_endpoint: `https://proxy.example.com${defaultPaths.registrationPath}`,
-        revocation_endpoint: `https://proxy.example.com${defaultPaths.revocationPath}`,
-        response_types_supported: serverMetadata.responseTypesSupported,
-        grant_types_supported: serverMetadata.grantTypesSupported,
-        code_challenge_methods_supported: serverMetadata.codeChallengeMethodsSupported,
-      });
-
-    // Validate proxying of authorization endpoint
-    await request(app)
-      .get(defaultPaths.authorizationPath)
-      .query({ response_type: 'code', client_id: 'client-id' })
-      .expect(303)
-      .expect('Location', 'https://example.com/redirect');
-
-    expect(authorization.isDone()).toBe(true);
-  });
 
   it('should create a delegated proxy router with correct metadata', async () => {
     const auth = new MCPAuth({ server: { type: 'oauth', metadata: serverMetadata } });

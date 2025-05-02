@@ -59,17 +59,7 @@ const mcpAuth = new MCPAuth({
 const PORT = 3234;
 const app = express();
 
-app.use(
-  mcpAuth.proxyRouter(`http://localhost:${PORT}`, {
-    proxyOptions: {
-      on: {
-        error: (error) => {
-          console.error('Proxy error:', error);
-        },
-      },
-    },
-  })
-);
+app.use(mcpAuth.delegatedRouter());
 
 app.post(
   '/mcp',

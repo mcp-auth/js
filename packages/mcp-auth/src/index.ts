@@ -8,7 +8,6 @@ import {
   type BearerAuthConfig,
 } from './handlers/handle-bearer-auth.js';
 import { createDelegatedRouter } from './routers/create-delegated-router.js';
-import { createProxyRouter, type ProxyModeConfig } from './routers/create-proxy-router.js';
 import { type AuthServerConfig } from './types/auth-server.js';
 import { createVerifyJwt } from './utils/create-verify-jwt.js';
 import { validateServerConfig } from './utils/validate-server-config.js';
@@ -115,53 +114,6 @@ export class MCPAuth {
         `The authorization server configuration has warnings:\n\n  - ${result.warnings.map(({ description }) => description).join('\n  - ')}\n`
       );
     }
-  }
-
-  /**
-   * Creates a router for proxy mode, which mounts:
-   *
-   * - `GET /.well-known/oauth-authorization-server` endpoint that serves the OAuth 2.0 Authorization
-   *   Server Metadata. The endpoints for `/authorize`, `/token`, `/registration`, and `/revoke`
-   *   are constructed based on the `baseUrl` and the provided configuration.
-   * - Endpoints for `/authorize`, `/token`, `/registration`, and `/revoke` that proxy requests
-   *   to the remote authorization server endpoints. The paths for these endpoints can be
-   *   overridden by the `config` parameter.
-   *
-   * @example
-   * This example shows how to use the `proxyRouter` method to create a router that mounts the
-   * following endpoints:
-   *
-   * - `GET /.well-known/oauth-authorization-server`
-   * - `/authorize`
-   * - `/token`
-   * - `/registration` (if `registrationEndpoint` is defined in the metadata)
-   * - `/revoke` (if `revocationEndpoint` is defined in the metadata)
-   *
-   * ```ts
-   * import express from 'express';
-   * import { MCPAuth } from 'mcp-auth';
-   *
-   * const app = express();
-   * const mcpAuth: MCPAuth; // Assume this is initialized
-   * app.use(mcpAuth.proxyRouter('https://your-mcp-server.com'));
-   * ```
-   *
-   * @param baseUrl The base URL of the MCP server. It is used to construct the endpoints for the
-   * OAuth 2.0 Authorization Server Metadata response.
-   * @param config Optional configuration for the proxy mode. It can override the default paths
-   * defined in MCP specification or provide additional options for the proxy middleware.
-   * @returns A router that handles the OAuth 2.0 Authorization Server Metadata and proxies requests
-   * to the remote authorization server endpoints.
-   */
-  proxyRouter(
-    baseUrl: string,
-    config?: Partial<Omit<ProxyModeConfig, 'baseUrl' | 'metadata'>>
-  ): Router {
-    return createProxyRouter({
-      baseUrl,
-      metadata: this.config.server.metadata,
-      ...config,
-    });
   }
 
   /**

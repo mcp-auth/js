@@ -125,17 +125,13 @@ export class MCPAuthBearerAuthError extends MCPAuthError {
   }
 }
 
-export type MCPAuthJwtVerificationErrorCode =
-  | 'invalid_jwt'
-  | 'jwt_verification_failed'
-  | 'jwt_expired';
+export type MCPAuthJwtVerificationErrorCode = 'invalid_jwt' | 'jwt_verification_failed';
 
 export const jwtVerificationErrorDescription: Readonly<
   Record<MCPAuthJwtVerificationErrorCode, string>
 > = Object.freeze({
   invalid_jwt: 'The provided JWT is invalid or malformed.',
   jwt_verification_failed: 'JWT verification failed. The token could not be verified.',
-  jwt_expired: 'The provided JWT has expired.',
 });
 
 /**

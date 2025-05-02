@@ -74,9 +74,6 @@
   "peerDependencies": {
     "express": "^5.0.1"
   },
-  "optionalDependencies": {
-    "http-proxy-middleware": "^3.0.5"
-  },
   "eslintConfig": {
     "extends": "@silverhand"
   },
