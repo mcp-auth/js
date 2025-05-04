@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 
-import { MCPAuthJwtVerificationError } from '../errors.js';
+import { MCPAuthTokenVerificationError } from '../errors.js';
 
 import { createVerifyJwt } from './create-verify-jwt.js';
 
@@ -25,9 +25,9 @@ describe('createVerifyJwt() returning error handling', () => {
     try {
       await verifyJwt(jwt);
     } catch (error) {
-      expect(error instanceof MCPAuthJwtVerificationError);
-      assert(error instanceof MCPAuthJwtVerificationError); // Make TypeScript happy
-      expect(error.code).toBe('invalid_jwt');
+      expect(error instanceof MCPAuthTokenVerificationError);
+      assert(error instanceof MCPAuthTokenVerificationError); // Make TypeScript happy
+      expect(error.code).toBe('invalid_token');
       expect(error.cause).toHaveProperty('code', 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED');
     }
 
@@ -41,7 +41,7 @@ describe('createVerifyJwt() returning error handling', () => {
       createJwt({ iss: 12_345, client_id: 'client12345', sub: 'user12345' }),
       createJwt({ iss: '', client_id: 'client12345', sub: 'user12345' }),
     ]);
-    const error = new MCPAuthJwtVerificationError('invalid_jwt', {
+    const error = new MCPAuthTokenVerificationError('invalid_token', {
       cause: 'The JWT payload does not contain the `iss` field or it is malformed.',
     });
 
@@ -55,7 +55,7 @@ describe('createVerifyJwt() returning error handling', () => {
       createJwt({ iss: 'https://logto.io/', client_id: 12_345, sub: 'user12345' }),
       createJwt({ iss: 'https://logto.io/', client_id: '', sub: 'user12345' }),
     ]);
-    const error = new MCPAuthJwtVerificationError('invalid_jwt', {
+    const error = new MCPAuthTokenVerificationError('invalid_token', {
       cause: 'The JWT payload does not contain the `client_id` field or it is malformed.',
     });
 
@@ -69,7 +69,7 @@ describe('createVerifyJwt() returning error handling', () => {
       createJwt({ iss: 'https://logto.io/', client_id: 'client12345', sub: 12_345 }),
       createJwt({ iss: 'https://logto.io/', client_id: 'client12345', sub: '' }),
     ]);
-    const error = new MCPAuthJwtVerificationError('invalid_jwt', {
+    const error = new MCPAuthTokenVerificationError('invalid_token', {
       cause: 'The JWT payload does not contain the `sub` field or it is malformed.',
     });
 

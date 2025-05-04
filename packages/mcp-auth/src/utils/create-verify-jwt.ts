@@ -3,7 +3,7 @@ import { tryThat } from '@silverhand/essentials';
 import { jwtVerify, type JWTVerifyGetKey, type JWTVerifyOptions } from 'jose';
 import { JOSEError } from 'jose/errors';
 
-import { MCPAuthJwtVerificationError } from '../errors.js';
+import { MCPAuthTokenVerificationError } from '../errors.js';
 import { type VerifyAccessTokenFunction } from '../handlers/handle-bearer-auth.js';
 
 const getScopes = (value: unknown): string[] | undefined => {
@@ -42,26 +42,26 @@ export const createVerifyJwt = (
 ): VerifyAccessTokenFunction => {
   const verifyJwt = async function (token: string): Promise<AuthInfo> {
     const { payload } = await tryThat(jwtVerify(token, getKey, { ...options }), (error) => {
-      throw new MCPAuthJwtVerificationError('invalid_jwt', {
+      throw new MCPAuthTokenVerificationError('invalid_token', {
         code: error instanceof JOSEError ? error.code : 'JWT_VERIFICATION_FAILED',
         cause: error,
       });
     });
 
     if (typeof payload.iss !== 'string' || !payload.iss) {
-      throw new MCPAuthJwtVerificationError('invalid_jwt', {
+      throw new MCPAuthTokenVerificationError('invalid_token', {
         cause: 'The JWT payload does not contain the `iss` field or it is malformed.',
       });
     }
 
     if (typeof payload.client_id !== 'string' || !payload.client_id) {
-      throw new MCPAuthJwtVerificationError('invalid_jwt', {
+      throw new MCPAuthTokenVerificationError('invalid_token', {
         cause: 'The JWT payload does not contain the `client_id` field or it is malformed.',
       });
     }
 
     if (typeof payload.sub !== 'string' || !payload.sub) {
-      throw new MCPAuthJwtVerificationError('invalid_jwt', {
+      throw new MCPAuthTokenVerificationError('invalid_token', {
         cause: 'The JWT payload does not contain the `sub` field or it is malformed.',
       });
     }

@@ -9,7 +9,7 @@ import assert from 'node:assert';
 import * as jose from 'jose';
 import { describe, expect, it, vi } from 'vitest';
 
-import { MCPAuthJwtVerificationError } from '../errors.js';
+import { MCPAuthTokenVerificationError } from '../errors.js';
 
 vi.mock('jose', async (importOriginal) => {
   const actual = await importOriginal<typeof jose>();
@@ -41,8 +41,8 @@ describe('createVerifyJwt() returning (mocked jose module)', () => {
     try {
       await verifyJwt(jwt);
     } catch (error) {
-      expect(error instanceof MCPAuthJwtVerificationError);
-      assert(error instanceof MCPAuthJwtVerificationError); // Make TypeScript happy
+      expect(error instanceof MCPAuthTokenVerificationError);
+      assert(error instanceof MCPAuthTokenVerificationError); // Make TypeScript happy
       expect(error.cause).toHaveProperty('code', 'JWT_VERIFICATION_FAILED');
     }
 

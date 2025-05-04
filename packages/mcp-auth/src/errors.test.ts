@@ -5,7 +5,7 @@ import {
   MCPAuthBearerAuthError,
   MCPAuthConfigError,
   MCPAuthError,
-  MCPAuthJwtVerificationError,
+  MCPAuthTokenVerificationError,
 } from './errors.js';
 
 describe('MCPAuthError', () => {
@@ -107,28 +107,28 @@ describe('MCPAuthBearerAuthError', () => {
   });
 });
 
-describe('MCPAuthJwtVerificationError', () => {
+describe('MCPAuthTokenVerificationError', () => {
   it('should have `name` property', () => {
-    const mcpError = new MCPAuthJwtVerificationError('invalid_jwt');
-    expect(mcpError.name).toBe('MCPAuthJwtVerificationError');
+    const mcpError = new MCPAuthTokenVerificationError('invalid_token');
+    expect(mcpError.name).toBe('MCPAuthTokenVerificationError');
   });
 
   it('should set message based on code', () => {
-    const mcpError = new MCPAuthJwtVerificationError('invalid_jwt');
-    expect(mcpError.message).toBe('The provided JWT is invalid or malformed.');
+    const mcpError = new MCPAuthTokenVerificationError('invalid_token');
+    expect(mcpError.message).toBe('The provided token is invalid or malformed.');
     expect(mcpError.toJson()).toEqual({
-      error: 'invalid_jwt',
-      errorDescription: 'The provided JWT is invalid or malformed.',
+      error: 'invalid_token',
+      errorDescription: 'The provided token is invalid or malformed.',
     });
   });
 
   it('should set message to default if code is unknown', () => {
     // @ts-expect-error: Testing unknown code
-    const mcpError = new MCPAuthJwtVerificationError('unknown_code');
-    expect(mcpError.message).toBe('An error occurred while verifying the JWT.');
+    const mcpError = new MCPAuthTokenVerificationError('unknown_code');
+    expect(mcpError.message).toBe('An error occurred while verifying the token.');
     expect(mcpError.toJson()).toEqual({
       error: 'unknown_code',
-      errorDescription: 'An error occurred while verifying the JWT.',
+      errorDescription: 'An error occurred while verifying the token.',
     });
   });
 });

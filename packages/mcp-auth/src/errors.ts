@@ -125,28 +125,28 @@ export class MCPAuthBearerAuthError extends MCPAuthError {
   }
 }
 
-export type MCPAuthJwtVerificationErrorCode = 'invalid_jwt' | 'jwt_verification_failed';
+export type MCPAuthTokenVerificationErrorCode = 'invalid_token' | 'token_verification_failed';
 
-export const jwtVerificationErrorDescription: Readonly<
-  Record<MCPAuthJwtVerificationErrorCode, string>
+export const tokenVerificationErrorDescription: Readonly<
+  Record<MCPAuthTokenVerificationErrorCode, string>
 > = Object.freeze({
-  invalid_jwt: 'The provided JWT is invalid or malformed.',
-  jwt_verification_failed: 'JWT verification failed. The token could not be verified.',
+  invalid_token: 'The provided token is invalid or malformed.',
+  token_verification_failed: 'Token verification failed due to an error.',
 });
 
 /**
- * Error thrown when there is an issue when verifying JWT tokens.
+ * Error thrown when there is an issue when verifying tokens.
  */
-export class MCPAuthJwtVerificationError extends MCPAuthError {
-  name = 'MCPAuthJwtVerificationError';
+export class MCPAuthTokenVerificationError extends MCPAuthError {
+  name = 'MCPAuthTokenVerificationError';
 
   constructor(
-    public readonly code: MCPAuthJwtVerificationErrorCode,
+    public readonly code: MCPAuthTokenVerificationErrorCode,
     public readonly cause?: unknown
   ) {
     super(
       code,
-      jwtVerificationErrorDescription[code] || 'An error occurred while verifying the JWT.'
+      tokenVerificationErrorDescription[code] || 'An error occurred while verifying the token.'
     );
   }
 }

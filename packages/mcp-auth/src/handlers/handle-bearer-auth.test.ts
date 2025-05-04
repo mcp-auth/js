@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   MCPAuthAuthServerError,
   MCPAuthConfigError,
-  MCPAuthJwtVerificationError,
+  MCPAuthTokenVerificationError,
 } from '../errors.js';
 
 import { handleBearerAuth, type VerifyAccessTokenFunction } from './handle-bearer-auth.js';
@@ -58,7 +58,7 @@ describe('handleBearerAuth() returned function with invalid headers or tokens', 
     if (token === 'valid-token') {
       return { issuer, clientId: 'client-id', scopes: ['read', 'write'], token };
     }
-    throw new MCPAuthJwtVerificationError('invalid_jwt');
+    throw new MCPAuthTokenVerificationError('invalid_token');
   });
 
   const handler = handleBearerAuth({
@@ -130,8 +130,8 @@ describe('handleBearerAuth() returned function with invalid headers or tokens', 
 
     expect(response.statusCode).toBe(401);
     expect(response._getJSONData()).toEqual({
-      error: 'invalid_jwt',
-      error_description: 'The provided JWT is invalid or malformed.',
+      error: 'invalid_token',
+      error_description: 'The provided token is invalid or malformed.',
     });
     expect(verifyAccessToken).toHaveBeenCalledWith('invalid-token');
   });
@@ -145,7 +145,7 @@ describe('handleBearerAuth() returned function with invalid fields in the token'
     if (token === 'valid-token') {
       return { issuer, clientId: 'client-id', scopes: ['read', 'write'], token };
     }
-    throw new MCPAuthJwtVerificationError('invalid_jwt');
+    throw new MCPAuthTokenVerificationError('invalid_token');
   });
   const handler = handleBearerAuth({
     verifyAccessToken,
@@ -166,7 +166,7 @@ describe('handleBearerAuth() returned function with invalid fields in the token'
           audience,
         };
       }
-      throw new MCPAuthJwtVerificationError('invalid_jwt');
+      throw new MCPAuthTokenVerificationError('invalid_token');
     });
     await handler(
       httpMocks.createRequest({ headers: { authorization: 'Bearer valid-token' } }),
@@ -208,7 +208,7 @@ describe('handleBearerAuth() returned function with invalid fields in the token'
           audience: ['wrong-audience'],
         };
       }
-      throw new MCPAuthJwtVerificationError('invalid_jwt');
+      throw new MCPAuthTokenVerificationError('invalid_token');
     });
     await handler(
       httpMocks.createRequest({ headers: { authorization: 'Bearer valid-token' } }),
@@ -230,7 +230,7 @@ describe('handleBearerAuth() returned function with invalid fields in the token'
       if (token === 'valid-token') {
         return { issuer, clientId: 'client-id', scopes: ['read'], token, audience };
       }
-      throw new MCPAuthJwtVerificationError('invalid_jwt');
+      throw new MCPAuthTokenVerificationError('invalid_token');
     });
     await handler(
       httpMocks.createRequest({ headers: { authorization: 'Bearer valid-token' } }),
@@ -255,7 +255,7 @@ describe('handleBearerAuth() returned function with valid token', () => {
     if (token === 'valid-token') {
       return { issuer, clientId: 'client-id', scopes: requiredScopes, token, audience };
     }
-    throw new MCPAuthJwtVerificationError('invalid_jwt');
+    throw new MCPAuthTokenVerificationError('invalid_token');
   });
   const handler = handleBearerAuth({
     verifyAccessToken,
@@ -381,7 +381,7 @@ describe('handleBearerAuth() returned function with error handling', () => {
           audience,
         };
       }
-      throw new MCPAuthJwtVerificationError('invalid_jwt');
+      throw new MCPAuthTokenVerificationError('invalid_token');
     });
     const handler = handleBearerAuth({
       verifyAccessToken,
