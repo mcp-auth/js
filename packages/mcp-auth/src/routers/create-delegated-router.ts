@@ -34,8 +34,9 @@ export const createDelegatedRouter = (metadata: CamelCaseAuthorizationServerMeta
   // eslint-disable-next-line new-cap
   const router = Router();
 
+  // Apply CORS middleware to allow cross-origin requests to the OAuth metadata endpoint.
   router.use(serverMetadataPaths.oauth, cors());
-  router.get(serverMetadataPaths.oauth, cors(), (_, response) => {
+  router.get(serverMetadataPaths.oauth, (_, response) => {
     response.status(200).json(snakecaseKeys(metadata));
   });
 
