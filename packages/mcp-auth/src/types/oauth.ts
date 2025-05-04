@@ -89,6 +89,11 @@ const authorizationServerMetadataObject = Object.freeze({
    * authorization server.
    */
   code_challenge_methods_supported: z.array(z.string()).optional(),
+  /**
+   * URL of the OpenID Connect [userinfo endpoint](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo).
+   * This endpoint is used to retrieve information about the authenticated user.
+   */
+  userinfo_endpoint: z.string().optional(),
 });
 
 /**

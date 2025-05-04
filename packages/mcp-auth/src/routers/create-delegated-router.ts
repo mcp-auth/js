@@ -34,6 +34,7 @@ export const createDelegatedRouter = (metadata: CamelCaseAuthorizationServerMeta
   // eslint-disable-next-line new-cap
   const router = Router();
 
+  router.use(serverMetadataPaths.oauth, cors());
   router.get(serverMetadataPaths.oauth, cors(), (_, response) => {
     response.status(200).json(snakecaseKeys(metadata));
   });

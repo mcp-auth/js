@@ -1,6 +1,8 @@
 import { type IncomingHttpHeaders } from 'node:http';
 
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+// eslint-disable-next-line unused-imports/no-unused-imports
+import { type DEFAULT_REQUEST_TIMEOUT_MSEC } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import { condObject, trySafe } from '@silverhand/essentials';
 import { type Response, type RequestHandler } from 'express';
 import snakecaseKeys from 'snakecase-keys';
@@ -9,7 +11,7 @@ import {
   MCPAuthAuthServerError,
   MCPAuthBearerAuthError,
   MCPAuthConfigError,
-  MCPAuthJwtVerificationError,
+  MCPAuthTokenVerificationError,
 } from '../errors.js';
 import { type MaybePromise } from '../types/promise.js';
 
@@ -99,7 +101,7 @@ declare module 'express-serve-static-core' {
 /**
  * Function type for verifying an access token.
  *
- * This function should throw an {@link MCPAuthJwtVerificationError} if the token is invalid,
+ * This function should throw an {@link MCPAuthTokenVerificationError} if the token is invalid,
  * or return an {@link AuthInfo} object if the token is valid.
  *
  * For example, if you have a JWT verification function, it should at least check the token's
@@ -123,7 +125,7 @@ export type BearerAuthConfig = {
   /**
    * Function type for verifying an access token.
    *
-   * This function should throw an {@link MCPAuthJwtVerificationError} if the token is invalid,
+   * This function should throw an {@link MCPAuthTokenVerificationError} if the token is invalid,
    * or return an {@link AuthInfo} object if the token is valid.
    *
    * @see {@link VerifyAccessTokenFunction} for more details.
@@ -185,7 +187,14 @@ const getBearerTokenFromHeaders = (headers: IncomingHttpHeaders): string => {
 };
 
 const handleError = (error: unknown, response: Response, showErrorDetails = false): void => {
-  if (error instanceof MCPAuthJwtVerificationError) {
+  if (error instanceof MCPAuthTokenVerificationError || error instanceof MCPAuthBearerAuthError) {
+    response.set(
+      'WWW-Authenticate',
+      `Bearer error="${error.code}", error_description="${error.message}"`
+    );
+  }
+
+  if (error instanceof MCPAuthTokenVerificationError) {
     response.status(401).json(snakecaseKeys(error.toJson(showErrorDetails)));
     return;
   }

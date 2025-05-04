@@ -100,7 +100,7 @@ export type BearerAuthJwtConfig = {
  * ```
  */
 export class MCPAuth {
-  constructor(protected readonly config: MCPAuthConfig) {
+  constructor(public readonly config: MCPAuthConfig) {
     const result = validateServerConfig(config.server);
 
     if (!result.isValid) {

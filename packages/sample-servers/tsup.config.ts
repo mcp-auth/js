@@ -1,7 +1,7 @@
 import { defineConfig, type Options } from 'tsup';
 
 export const config = Object.freeze({
-  entry: ['src/index.ts'],
+  entry: ['src/whoami.ts'],
   outDir: 'dist',
   format: ['esm'],
   dts: false,
