@@ -16,11 +16,19 @@
   "module": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "exports": {
-    "svelte": "./lib/index.js",
-    "types": "./lib/index.d.ts",
-    "import": "./lib/index.js",
-    "require": "./lib/index.js",
-    "default": "./lib/index.js"
+    ".": {
+      "svelte": "./lib/index.js",
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "require": "./lib/index.js",
+      "default": "./lib/index.js"
+    },
+    "./*": {
+      "svelte": "./lib/*",
+      "import": "./lib/*",
+      "require": "./lib/*",
+      "default": "./lib/*"
+    }
   },
   "files": [
     "lib"

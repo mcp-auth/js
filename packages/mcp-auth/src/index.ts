@@ -1,4 +1,4 @@
-import { type RequestHandler, type Router } from 'express';
+import type { RequestHandler, Router } from 'express';
 import { createRemoteJWKSet, type RemoteJWKSetOptions, type JWTVerifyOptions } from 'jose';
 
 import { MCPAuthAuthServerError } from './errors.js';
