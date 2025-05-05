@@ -1,6 +1,6 @@
 {
   "name": "mcp-auth",
-  "version": "0.1.0-beta.2",
+  "version": "0.1.0-beta.3",
   "author": "Silverhand Inc. <contact@silverhand.io>",
   "description": "Plug and play auth for Model Context Protocol (MCP) servers",
   "keywords": [
