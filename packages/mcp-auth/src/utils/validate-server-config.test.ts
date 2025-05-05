@@ -23,6 +23,7 @@ describe('validateServerConfig', () => {
 
     const result = validateServerConfig(config);
     expect(result.isValid).toBe(true);
+    expect(result).not.toHaveProperty('successes');
     expect(result).not.toHaveProperty('errors');
     expect(result.warnings).toEqual([]);
   });
@@ -93,6 +94,36 @@ describe('validateServerConfig', () => {
     expect(result.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: 's256_code_challenge_method_not_supported' }),
+      ])
+    );
+  });
+});
+
+describe('validateServerConfig with verbose mode', () => {
+  it('should return successes when verbose is true', () => {
+    const config: AuthServerConfig = {
+      type: 'oauth',
+      metadata: {
+        issuer: 'https://example.com',
+        authorizationEndpoint: 'https://example.com/oauth/authorize',
+        tokenEndpoint: 'https://example.com/oauth/token',
+        responseTypesSupported: ['code'],
+        grantTypesSupported: ['authorization_code'],
+        codeChallengeMethodsSupported: ['S256'],
+        registrationEndpoint: 'https://example.com/register',
+      },
+    };
+
+    const result = validateServerConfig(config, true);
+    expect(result.isValid).toBe(true);
+    expect(result.successes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'server_metadata_valid' }),
+        expect.objectContaining({ code: 'code_response_type_supported' }),
+        expect.objectContaining({ code: 'authorization_code_grant_supported' }),
+        expect.objectContaining({ code: 'pkce_supported' }),
+        expect.objectContaining({ code: 's256_code_challenge_method_supported' }),
+        expect.objectContaining({ code: 'dynamic_registration_supported' }),
       ])
     );
   });

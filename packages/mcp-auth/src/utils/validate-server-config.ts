@@ -1,5 +1,48 @@
+import { condObject } from '@silverhand/essentials';
+
 import { type AuthServerConfig } from '../types/auth-server.js';
 import { camelCaseAuthorizationServerMetadataSchema } from '../types/oauth.js';
+
+/**
+ * The codes for successful validation of the authorization server metadata.
+ */
+export type AuthServerSuccessCode =
+  | 'server_metadata_valid'
+  | 'dynamic_registration_supported'
+  | 'pkce_supported'
+  | 's256_code_challenge_method_supported'
+  | 'authorization_code_grant_supported'
+  | 'code_response_type_supported';
+
+const authServerSuccessDescription: Readonly<Record<AuthServerSuccessCode, string>> = Object.freeze(
+  {
+    server_metadata_valid: 'The server metadata is valid and conforms to the expected schema.',
+    dynamic_registration_supported:
+      'Dynamic Client Registration (RFC 7591) is supported by the server.',
+    pkce_supported: 'Proof Key for Code Exchange (PKCE) is supported by the server.',
+    s256_code_challenge_method_supported:
+      'The "S256" code challenge method for Proof Key for Code Exchange (PKCE) is supported by the server.',
+    authorization_code_grant_supported:
+      'The "authorization_code" grant type is supported by the server.',
+    code_response_type_supported: 'The "code" response type is supported by the server.',
+  }
+);
+
+type AuthServerSuccess = {
+  /**
+   * The code representing the specific success validation.
+   */
+  code: AuthServerSuccessCode;
+  /**
+   * A human-readable description of the success.
+   */
+  description: string;
+};
+
+const createSuccess = (code: AuthServerSuccessCode): AuthServerSuccess => ({
+  code,
+  description: authServerSuccessDescription[code],
+});
 
 /**
  * The codes for errors that can occur when validating the authorization server metadata.
@@ -94,46 +137,91 @@ type AuthServerConfigValidationResult =
       warnings: AuthServerConfigWarning[];
     };
 
-/**
- * Validates the authorization server configuration against the MCP specification.
- *
- * @param param0 The configuration object containing the server metadata to validate.
- * @returns An object indicating whether the configuration is valid (`{ isValid: true }`) or
- * invalid (`{ isValid: false }`), along with any errors or warnings encountered during validation.
- * @see {@link AuthServerConfigValidationResult} for the structure of the return value.
- */
-export const validateServerConfig = ({
-  metadata,
-}: Readonly<AuthServerConfig>): AuthServerConfigValidationResult => {
+type ValidateServerConfig = {
+  /**
+   * Validates the authorization server configuration against the MCP specification.
+   *
+   * @param config The configuration object containing the server metadata to validate.
+   * @returns An object indicating whether the configuration is valid (`{ isValid: true }`) or
+   * invalid (`{ isValid: false }`), along with any errors or warnings encountered during validation.
+   * @see {@link AuthServerConfigValidationResult} for the structure of the return value.
+   */
+  (config: Readonly<AuthServerConfig>): AuthServerConfigValidationResult;
+  /**
+   * Validates the authorization server configuration against the MCP specification.
+   *
+   * @param config The configuration object containing the server metadata to validate.
+   * @param verbose If `true`, the validation will include success messages in the result.
+   * @returns An object indicating whether the configuration is valid (`{ isValid: true }`) or
+   * invalid (`{ isValid: false }`), along with any errors or warnings encountered during validation.
+   * @see {@link AuthServerConfigValidationResult} for the structure of the return value.
+   */
+  (
+    config: Readonly<AuthServerConfig>,
+    verbose: true
+  ): AuthServerConfigValidationResult & {
+    /** An array of success messages encountered during validation. */
+    successes: AuthServerSuccess[];
+  };
+};
+
+// eslint-disable-next-line complexity
+export const validateServerConfig: ValidateServerConfig = (config, verbose = false) => {
+  const { metadata } = config;
   const errors: AuthServerConfigError[] = [];
   const warnings: AuthServerConfigWarning[] = [];
-
+  const successes: AuthServerSuccess[] = [];
   const parsed = camelCaseAuthorizationServerMetadataSchema.safeParse(metadata);
+  const buildReturnValue = () =>
+    // eslint-disable-next-line no-restricted-syntax -- the return type inference is beyond TypeScript's capabilities
+    condObject({
+      isValid: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings,
+      successes: verbose ? successes : undefined,
+    }) as ReturnType<ValidateServerConfig>;
 
   /* eslint-disable @silverhand/fp/no-mutating-methods -- for the sake of readability */
   if (!parsed.success) {
     errors.push(createError('invalid_server_metadata', parsed.error));
-    return { isValid: false, errors, warnings };
+    return buildReturnValue();
+  }
+
+  if (verbose) {
+    successes.push(createSuccess('server_metadata_valid'));
   }
 
   if (!metadata.responseTypesSupported.some((type) => type.split(' ').includes('code'))) {
     errors.push(createError('code_response_type_not_supported'));
+  } else if (verbose) {
+    successes.push(createSuccess('code_response_type_supported'));
   }
 
   if (!metadata.grantTypesSupported?.includes('authorization_code')) {
     errors.push(createError('authorization_code_grant_not_supported'));
+  } else if (verbose) {
+    successes.push(createSuccess('authorization_code_grant_supported'));
   }
 
-  if (!metadata.codeChallengeMethodsSupported) {
+  if (metadata.codeChallengeMethodsSupported) {
+    if (verbose) {
+      successes.push(createSuccess('pkce_supported'));
+    }
+    if (!metadata.codeChallengeMethodsSupported.includes('S256')) {
+      errors.push(createError('s256_code_challenge_method_not_supported'));
+    } else if (verbose) {
+      successes.push(createSuccess('s256_code_challenge_method_supported'));
+    }
+  } else {
     errors.push(createError('pkce_not_supported'));
-  } else if (!metadata.codeChallengeMethodsSupported.includes('S256')) {
-    errors.push(createError('s256_code_challenge_method_not_supported'));
   }
 
   if (!metadata.registrationEndpoint) {
     warnings.push(createWarning('dynamic_registration_not_supported'));
+  } else if (verbose) {
+    successes.push(createSuccess('dynamic_registration_supported'));
   }
   /* eslint-enable @silverhand/fp/no-mutating-methods */
 
-  return errors.length === 0 ? { isValid: true, warnings } : { isValid: false, errors, warnings };
+  return buildReturnValue();
 };
