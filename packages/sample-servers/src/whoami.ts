@@ -36,6 +36,10 @@ const mcpAuth = new MCPAuth({
   server: await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' }),
 });
 
+/**
+ * Verifies the provided Bearer token by fetching user information from the authorization server.
+ * If the token is valid, it returns an `AuthInfo` object containing the user's information.
+ */
 const verifyToken: VerifyAccessTokenFunction = async (token) => {
   const { userinfoEndpoint } = mcpAuth.config.server.metadata;
 
