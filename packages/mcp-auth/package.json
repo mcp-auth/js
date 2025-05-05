@@ -1,6 +1,6 @@
 {
   "name": "mcp-auth",
-  "version": "0.1.0-beta.2",
+  "version": "0.1.0-beta.3",
   "author": "Silverhand Inc. <contact@silverhand.io>",
   "description": "Plug and play auth for Model Context Protocol (MCP) servers",
   "keywords": [
@@ -16,11 +16,19 @@
   "module": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "exports": {
-    "svelte": "./lib/index.js",
-    "types": "./lib/index.d.ts",
-    "import": "./lib/index.js",
-    "require": "./lib/index.js",
-    "default": "./lib/index.js"
+    ".": {
+      "svelte": "./lib/index.js",
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "require": "./lib/index.js",
+      "default": "./lib/index.js"
+    },
+    "./*": {
+      "svelte": "./lib/*",
+      "import": "./lib/*",
+      "require": "./lib/*",
+      "default": "./lib/*"
+    }
   },
   "files": [
     "lib"
