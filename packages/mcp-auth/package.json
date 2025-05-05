@@ -1,8 +1,8 @@
 {
   "name": "mcp-auth",
-  "version": "0.1.0-beta.0",
+  "version": "0.1.0-beta.1",
   "author": "Silverhand Inc. <contact@silverhand.io>",
-  "description": "Connect your MCP server to any eligible OAuth 2 or OpenID Connect provider",
+  "description": "Plug and play auth for Model Context Protocol (MCP) servers",
   "keywords": [
     "modelcontextprotocol",
     "mcp",
