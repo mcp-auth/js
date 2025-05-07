@@ -6,7 +6,7 @@
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/mcp-auth)](https://bundlephobia.com/package/mcp-auth)
 [![License](https://img.shields.io/npm/l/mcp-auth)](https://github.com/mcp-auth/js/blob/master/LICENSE)
 
-The MCP specification [requires OAuth 2.1 and other RFCs](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization) to be implemented for authorization. MCP Auth aims to connect your MCP server to **any** compatible OAuth 2 or OpenID Connect provider, without spending hours on lengthy implementations.
+The MCP spec [requires OAuth 2.1 and other RFCs](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization) for auth. Instead of spending weeks on them, use MCP Auth to connect to an trusted provider with a few lines of code.
 
 ## Get started
 
