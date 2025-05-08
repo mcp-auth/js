@@ -15,6 +15,7 @@
     "build": "tsc --noEmit && tsup",
     "dev": "tsup --config tsup.dev.config.ts",
     "start": "node dist/whoami.js",
+    "start:js": "node src/whoami.js",
     "test": "echo \"Error: no test specified\"",
     "lint": "eslint src"
   },

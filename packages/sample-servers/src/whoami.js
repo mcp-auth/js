@@ -1,20 +1,16 @@
+// @ts-check
+
 /**
- * This is the TypeScript version of the WhoAmI server.
+ * This is the JavaScript version of the WhoAmI server.
  *
  * @see {@link https://mcp-auth.dev/docs/tutorials/whoami Tutorial} for the full tutorial.
- * @see {@link file://./whoami.js} for the JavaScript version.
+ * @see {@link file://./whoami.ts} for the TypeScript version.
  */
-
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { configDotenv } from 'dotenv';
 import express from 'express';
-import {
-  fetchServerConfig,
-  MCPAuth,
-  MCPAuthTokenVerificationError,
-  type VerifyAccessTokenFunction,
-} from 'mcp-auth';
+import { fetchServerConfig, MCPAuth, MCPAuthTokenVerificationError } from 'mcp-auth';
 
 configDotenv();
 
@@ -46,8 +42,11 @@ const mcpAuth = new MCPAuth({
 /**
  * Verifies the provided Bearer token by fetching user information from the authorization server.
  * If the token is valid, it returns an `AuthInfo` object containing the user's information.
+ *
+ * @import { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+ * @type {(token: string) => Promise<AuthInfo>}
  */
-const verifyToken: VerifyAccessTokenFunction = async (token) => {
+const verifyToken = async (token) => {
   const { issuer, userinfoEndpoint } = mcpAuth.config.server.metadata;
 
   if (!userinfoEndpoint) {
@@ -62,7 +61,7 @@ const verifyToken: VerifyAccessTokenFunction = async (token) => {
     throw new MCPAuthTokenVerificationError('token_verification_failed', response);
   }
 
-  const userInfo: unknown = await response.json();
+  const userInfo = await response.json();
 
   if (typeof userInfo !== 'object' || userInfo === null || !('sub' in userInfo)) {
     throw new MCPAuthTokenVerificationError('invalid_token', response);
@@ -85,7 +84,7 @@ app.use(mcpAuth.delegatedRouter());
 app.use(mcpAuth.bearerAuth(verifyToken));
 
 // Below is the boilerplate code from MCP SDK documentation
-const transports: Record<string, SSEServerTransport> = {};
+const transports = {};
 
 // eslint-disable-next-line unicorn/prevent-abbreviations
 app.get('/sse', async (_req, res) => {
@@ -95,7 +94,7 @@ app.get('/sse', async (_req, res) => {
   transports[transport.sessionId] = transport;
 
   res.on('close', () => {
-    // eslint-disable-next-line @silverhand/fp/no-delete, @typescript-eslint/no-dynamic-delete
+    // eslint-disable-next-line @silverhand/fp/no-delete
     delete transports[transport.sessionId];
   });
 
