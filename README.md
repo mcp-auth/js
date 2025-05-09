@@ -22,7 +22,7 @@ npm install mcp-auth
 
 Or use your package manager of choice, such as `pnpm` or `yarn`.
 
-See [the documentation](https://mcp-auth.dev/docs/get-started) for the full guide.
+See [the documentation](https://mcp-auth.dev/docs) for the full guide.
 
 ## Join the discussion
 
