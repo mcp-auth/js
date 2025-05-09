@@ -28,7 +28,7 @@ describe('MCPAuth class (routers)', () => {
     revocationEndpoint: `${issuer}${revocationPath}`,
   } satisfies MCPAuthConfig['server']['metadata']);
 
-  it('should create a delegated proxy router with correct metadata', async () => {
+  it('should create a delegated router with correct metadata', async () => {
     const auth = new MCPAuth({ server: { type: 'oauth', metadata: serverMetadata } });
     const router = auth.delegatedRouter();
 
