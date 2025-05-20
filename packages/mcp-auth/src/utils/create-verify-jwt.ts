@@ -1,5 +1,5 @@
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import { cond, tryThat } from '@silverhand/essentials';
+import { tryThat } from '@silverhand/essentials';
 import { jwtVerify, type JWTVerifyGetKey, type JWTVerifyOptions } from 'jose';
 import { JOSEError } from 'jose/errors';
 
@@ -64,7 +64,7 @@ export const createVerifyJwt = (
 
     return {
       issuer: payload.iss,
-      clientId: cond(typeof clientId === 'string' && clientId) ?? '',
+      clientId: typeof clientId === 'string' ? clientId : '',
       scopes: getScopes(payload.scope) ?? getScopes(payload.scopes) ?? [],
       token,
       audience: payload.aud,
