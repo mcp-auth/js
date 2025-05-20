@@ -28,6 +28,46 @@ describe('validateServerConfig', () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it('should have set `isValid` to true if the server config is valid without grant types', () => {
+    const config: AuthServerConfig = {
+      type: 'oauth',
+      metadata: {
+        issuer: 'https://example.com',
+        authorizationEndpoint: 'https://example.com/oauth/authorize',
+        tokenEndpoint: 'https://example.com/oauth/token',
+        responseTypesSupported: ['code'],
+        codeChallengeMethodsSupported: ['S256'],
+      },
+    };
+
+    const result = validateServerConfig(config);
+    expect(result.isValid).toBe(true);
+    expect(result).not.toHaveProperty('successes');
+    expect(result).not.toHaveProperty('errors');
+  });
+
+  it("should have set `isValid` to false if the server config's grant types are invalid", () => {
+    const config: AuthServerConfig = {
+      type: 'oauth',
+      metadata: {
+        issuer: 'https://example.com',
+        authorizationEndpoint: 'https://example.com/oauth/authorize',
+        tokenEndpoint: 'https://example.com/oauth/token',
+        responseTypesSupported: ['code'],
+        grantTypesSupported: ['invalid_grant_type'],
+        codeChallengeMethodsSupported: ['S256'],
+      },
+    };
+
+    const result = validateServerConfig(config);
+    assert(!result.isValid, 'Expected isValid to be false');
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'authorization_code_grant_not_supported' }),
+      ])
+    );
+  });
+
   it('should have set `isValid` to false if the server config is invalid', () => {
     const config: AuthServerConfig = {
       type: 'oauth',
@@ -44,7 +84,6 @@ describe('validateServerConfig', () => {
     expect(result.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: 'code_response_type_not_supported' }),
-        expect.objectContaining({ code: 'authorization_code_grant_not_supported' }),
         expect.objectContaining({ code: 'pkce_not_supported' }),
       ])
     );
