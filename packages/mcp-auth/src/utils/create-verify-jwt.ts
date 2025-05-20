@@ -1,5 +1,5 @@
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import { tryThat } from '@silverhand/essentials';
+import { cond, tryThat } from '@silverhand/essentials';
 import { jwtVerify, type JWTVerifyGetKey, type JWTVerifyOptions } from 'jose';
 import { JOSEError } from 'jose/errors';
 
@@ -54,21 +54,17 @@ export const createVerifyJwt = (
       });
     }
 
-    if (typeof payload.client_id !== 'string' || !payload.client_id) {
-      throw new MCPAuthTokenVerificationError('invalid_token', {
-        cause: 'The JWT payload does not contain the `client_id` field or it is malformed.',
-      });
-    }
-
     if (typeof payload.sub !== 'string' || !payload.sub) {
       throw new MCPAuthTokenVerificationError('invalid_token', {
         cause: 'The JWT payload does not contain the `sub` field or it is malformed.',
       });
     }
 
+    const clientId = payload.client_id ?? payload.azp;
+
     return {
       issuer: payload.iss,
-      clientId: payload.client_id,
+      clientId: cond(typeof clientId === 'string' && clientId) ?? '',
       scopes: getScopes(payload.scope) ?? getScopes(payload.scopes) ?? [],
       token,
       audience: payload.aud,
