@@ -127,3 +127,10 @@ export const camelCaseAuthorizationServerMetadataSchema = z.object(
 export type CamelCaseAuthorizationServerMetadata = z.infer<
   typeof camelCaseAuthorizationServerMetadataSchema
 >;
+
+export const defaultValues: Readonly<Partial<CamelCaseAuthorizationServerMetadata>> = Object.freeze(
+  {
+    grantTypesSupported: ['authorization_code', 'implicit'],
+    responseModesSupported: ['query', 'fragment'],
+  }
+);

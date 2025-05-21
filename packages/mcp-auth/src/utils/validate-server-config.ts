@@ -1,7 +1,7 @@
 import { condObject } from '@silverhand/essentials';
 
 import { type AuthServerConfig } from '../types/auth-server.js';
-import { camelCaseAuthorizationServerMetadataSchema } from '../types/oauth.js';
+import { camelCaseAuthorizationServerMetadataSchema, defaultValues } from '../types/oauth.js';
 
 /**
  * The codes for successful validation of the authorization server metadata.
@@ -197,7 +197,11 @@ export const validateServerConfig: ValidateServerConfig = (config, verbose = fal
     successes.push(createSuccess('code_response_type_supported'));
   }
 
-  if (!metadata.grantTypesSupported?.includes('authorization_code')) {
+  if (
+    !(metadata.grantTypesSupported ?? defaultValues.grantTypesSupported)?.includes(
+      'authorization_code'
+    )
+  ) {
     errors.push(createError('authorization_code_grant_not_supported'));
   } else if (verbose) {
     successes.push(createSuccess('authorization_code_grant_supported'));
