@@ -54,21 +54,23 @@ export const createVerifyJwt = (
       });
     }
 
-    if (typeof payload.client_id !== 'string' || !payload.client_id) {
-      throw new MCPAuthTokenVerificationError('invalid_token', {
-        cause: 'The JWT payload does not contain the `client_id` field or it is malformed.',
-      });
-    }
-
     if (typeof payload.sub !== 'string' || !payload.sub) {
       throw new MCPAuthTokenVerificationError('invalid_token', {
         cause: 'The JWT payload does not contain the `sub` field or it is malformed.',
       });
     }
+    /*
+     * Accept either `client_id` (RFC 9068) or `azp` claim for better compatibility.
+     * While `client_id` is required by RFC 9068 for JWT access tokens, many providers
+     * (Auth0, Microsoft, Google) may use or support `azp` claim.
+     *
+     * See: https://github.com/mcp-auth/js/issues/28 for detailed discussion
+     */
+    const clientId = payload.client_id ?? payload.azp;
 
     return {
       issuer: payload.iss,
-      clientId: payload.client_id,
+      clientId: typeof clientId === 'string' ? clientId : '',
       scopes: getScopes(payload.scope) ?? getScopes(payload.scopes) ?? [],
       token,
       audience: payload.aud,

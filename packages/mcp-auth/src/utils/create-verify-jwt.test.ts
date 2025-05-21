@@ -48,20 +48,6 @@ describe('createVerifyJwt() returning error handling', () => {
     await Promise.all(jwts.map(async (jwt) => expect(verifyJwt(jwt)).rejects.toThrow(error)));
   });
 
-  it('should throw an error if the JWT payload does not contain the `client_id` field or it is malformed', async () => {
-    const verifyJwt = createVerifyJwt(() => secret);
-    const jwts = await Promise.all([
-      createJwt({ iss: 'https://logto.io/', sub: 'user12345' }),
-      createJwt({ iss: 'https://logto.io/', client_id: 12_345, sub: 'user12345' }),
-      createJwt({ iss: 'https://logto.io/', client_id: '', sub: 'user12345' }),
-    ]);
-    const error = new MCPAuthTokenVerificationError('invalid_token', {
-      cause: 'The JWT payload does not contain the `client_id` field or it is malformed.',
-    });
-
-    await Promise.all(jwts.map(async (jwt) => expect(verifyJwt(jwt)).rejects.toThrow(error)));
-  });
-
   it('should throw an error if the JWT payload does not contain the `sub` field or it is malformed', async () => {
     const verifyJwt = createVerifyJwt(() => secret);
     const jwts = await Promise.all([
@@ -79,7 +65,7 @@ describe('createVerifyJwt() returning error handling', () => {
 
 const expectJwtPayload = (jwt: string, claims: Record<string, unknown>, scopes: string[]) => ({
   issuer: claims.iss,
-  clientId: claims.client_id,
+  clientId: claims.client_id ?? claims.azp ?? '',
   scopes,
   token: jwt,
   audience: claims.aud,
@@ -143,6 +129,48 @@ describe('createVerifyJwt() returning normal behavior', () => {
       client_id: 'client12345',
       sub: 'user12345',
       aud: 'audience12345',
+    });
+    const jwt = await createJwt(claims);
+    const result = await verifyJwt(jwt);
+    expect(result).toEqual(expectJwtPayload(jwt, claims, []));
+  });
+
+  it('should return the verified JWT payload `client_id` field is not present or malformed', async () => {
+    const verifyJwt = createVerifyJwt(() => secret);
+    const claimsArray = [
+      {
+        iss: 'https://logto.io/',
+        sub: 'user12345',
+      },
+      {
+        iss: 'https://logto.io/',
+        client_id: 12_345,
+        sub: 'user12345',
+      },
+      {
+        iss: 'https://logto.io/',
+        client_id: '',
+        sub: 'user12345',
+      },
+    ];
+    const jwts = await Promise.all(claimsArray.map(async (claims) => createJwt(claims)));
+
+    await Promise.all(
+      jwts.map(async (jwt, index) => {
+        expect(await verifyJwt(jwt)).toEqual({
+          ...expectJwtPayload(jwt, claimsArray[index]!, []),
+          clientId: '', // Should fall back to empty string, since the official SDK does not support undefined
+        });
+      })
+    );
+  });
+
+  it('should return the verified JWT payload with `azp` field', async () => {
+    const verifyJwt = createVerifyJwt(() => secret);
+    const claims = Object.freeze({
+      iss: 'https://logto.io/',
+      sub: 'user12345',
+      azp: 'client12345',
     });
     const jwt = await createJwt(claims);
     const result = await verifyJwt(jwt);
