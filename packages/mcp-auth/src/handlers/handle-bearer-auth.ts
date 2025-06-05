@@ -3,7 +3,7 @@ import { type IncomingHttpHeaders } from 'node:http';
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 // eslint-disable-next-line unused-imports/no-unused-imports
 import { type DEFAULT_REQUEST_TIMEOUT_MSEC } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import { condObject, trySafe } from '@silverhand/essentials';
+import { condObject } from '@silverhand/essentials';
 import { type Response, type RequestHandler } from 'express';
 import snakecaseKeys from 'snakecase-keys';
 
@@ -121,6 +121,20 @@ declare module 'express-serve-static-core' {
  */
 export type VerifyAccessTokenFunction = (token: string) => MaybePromise<AuthInfo>;
 
+/**
+ * Function type for validating the issuer of the access token.
+ *
+ * This function should throw an {@link MCPAuthBearerAuthError} with code 'invalid_issuer' if the issuer
+ * is not valid. The issuer should be validated against:
+ *
+ * 1. The authorization servers configured in MCP-Auth's auth server metadata
+ * 2. The authorization servers listed in the protected resource's metadata
+ *
+ * @param issuer The issuer of the access token.
+ * @throws {MCPAuthBearerAuthError} When the issuer is not recognized or invalid.
+ */
+export type ValidateIssuerFunction = (tokenIssuer: string) => void;
+
 export type BearerAuthConfig = {
   /**
    * Function type for verifying an access token.
@@ -132,10 +146,11 @@ export type BearerAuthConfig = {
    */
   verifyAccessToken: VerifyAccessTokenFunction;
   /**
-   * The expected issuer of the access token (`iss` claim). This should be the URL of the
-   * authorization server that issued the token.
+   * Function for validating the issuer of the access token.
+   *
+   * @see {@link ValidateIssuerFunction} for more details.
    */
-  issuer: string;
+  validateIssuer: ValidateIssuerFunction;
   /**
    * The expected audience of the access token (`aud` claim). This is typically the resource server
    * (API) that the token is intended for. If not provided, the audience check will be skipped.
@@ -244,7 +259,7 @@ const handleError = (error: unknown, response: Response, showErrorDetails = fals
  */
 export const handleBearerAuth = ({
   verifyAccessToken,
-  issuer,
+  validateIssuer,
   requiredScopes,
   audience,
   showErrorDetails,
@@ -255,8 +270,10 @@ export const handleBearerAuth = ({
     );
   }
 
-  if (!trySafe(() => new URL(issuer))) {
-    throw new TypeError(`\`issuer\` must be a valid URL.`);
+  if (typeof validateIssuer !== 'function') {
+    throw new TypeError(
+      '`validateIssuer` must be a function that takes an issuer and throws an `MCPAuthBearerAuthError` if the issuer is not valid.'
+    );
   }
 
   const bearerAuthHandler: RequestHandler = async function (request, response, next) {
@@ -264,12 +281,7 @@ export const handleBearerAuth = ({
       const token = getBearerTokenFromHeaders(request.headers);
       const authInfo = await verifyAccessToken(token);
 
-      if (authInfo.issuer !== issuer) {
-        throw new MCPAuthBearerAuthError('invalid_issuer', {
-          expected: issuer,
-          actual: authInfo.issuer,
-        });
-      }
+      validateIssuer(authInfo.issuer);
 
       if (
         audience &&

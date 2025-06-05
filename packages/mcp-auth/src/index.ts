@@ -1,11 +1,17 @@
 import type { RequestHandler, Router } from 'express';
-import { createRemoteJWKSet, type RemoteJWKSetOptions, type JWTVerifyOptions } from 'jose';
+import {
+  createRemoteJWKSet,
+  type RemoteJWKSetOptions,
+  type JWTVerifyOptions,
+  decodeJwt,
+} from 'jose';
 
-import { MCPAuthAuthServerError } from './errors.js';
+import { MCPAuthAuthServerError, MCPAuthBearerAuthError } from './errors.js';
 import {
   handleBearerAuth,
   type VerifyAccessTokenFunction,
   type BearerAuthConfig,
+  type ValidateIssuerFunction,
 } from './handlers/handle-bearer-auth.js';
 import { createDelegatedRouter } from './routers/create-delegated-router.js';
 import { type AuthServerConfig } from './types/auth-server.js';
@@ -38,6 +44,8 @@ export type VerifyAccessTokenMode = 'jwt';
 export type BearerAuthJwtConfig = {
   /**
    * Options to pass to the `jose` library's `jwtVerify` function.
+   *
+   * The issuer option is hardcoded to the authorization server’s issuer.
    *
    * @see {@link JWTVerifyOptions} for the type definition of the options.
    */
@@ -199,9 +207,15 @@ export class MCPAuth {
       jwtVerify,
       remoteJwkSet,
       ...config
-    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & BearerAuthJwtConfig = {}
+    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'validateIssuer'> & BearerAuthJwtConfig = {}
   ): RequestHandler {
-    const { issuer, jwksUri } = this.config.server.metadata;
+    const { server } = this.config;
+
+    const availableAuthServers = [server.metadata];
+
+    const getAuthServerMetadataByIssuer = (tokenIssuer: string) => {
+      return availableAuthServers.find((authServer) => authServer.issuer === tokenIssuer);
+    };
 
     const getVerifyFunction = () => {
       if (typeof modeOrVerify === 'function') {
@@ -210,18 +224,53 @@ export class MCPAuth {
 
       switch (modeOrVerify) {
         case 'jwt': {
-          if (!jwksUri) {
-            throw new MCPAuthAuthServerError('missing_jwks_uri');
-          }
+          return async (token: string) => {
+            const unverifiedJwtPayload = decodeJwt(token);
 
-          return createVerifyJwt(createRemoteJWKSet(new URL(jwksUri), remoteJwkSet), jwtVerify);
+            if (!unverifiedJwtPayload.iss) {
+              throw new MCPAuthBearerAuthError('invalid_token', {
+                cause: 'The JWT payload does not contain the `iss` field or it is malformed.',
+              });
+            }
+
+            const authServer = getAuthServerMetadataByIssuer(unverifiedJwtPayload.iss);
+
+            if (!authServer) {
+              throw new MCPAuthBearerAuthError('invalid_issuer', {
+                expected: availableAuthServers.map((authServer) => authServer.issuer).join(', '),
+                actual: unverifiedJwtPayload.iss,
+              });
+            }
+
+            const { jwksUri } = authServer;
+
+            if (!jwksUri) {
+              throw new MCPAuthAuthServerError('missing_jwks_uri');
+            }
+
+            return createVerifyJwt(
+              createRemoteJWKSet(new URL(jwksUri), remoteJwkSet),
+              jwtVerify
+            )(token);
+          };
         }
+      }
+    };
+
+    const validateIssuer: ValidateIssuerFunction = (tokenIssuer: string) => {
+      const authServer = getAuthServerMetadataByIssuer(tokenIssuer);
+
+      if (!authServer) {
+        throw new MCPAuthBearerAuthError('invalid_issuer', {
+          expected: availableAuthServers.map((authServer) => authServer.issuer).join(', '),
+          actual: tokenIssuer,
+        });
       }
     };
 
     return handleBearerAuth({
       verifyAccessToken: getVerifyFunction(),
-      issuer,
+      validateIssuer,
       ...config,
     });
   }
