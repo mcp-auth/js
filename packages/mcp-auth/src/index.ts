@@ -16,7 +16,10 @@ import {
 } from './handlers/handle-bearer-auth.js';
 import { createDelegatedRouter } from './routers/create-delegated-router.js';
 import { type AuthServerConfig } from './types/auth-server.js';
-import { type ProtectedResourceConfig } from './types/protected-resource.js';
+import {
+  protectedResourceMetadataPath,
+  type ProtectedResourceConfig,
+} from './types/protected-resource.js';
 import { createVerifyJwt } from './utils/create-verify-jwt.js';
 import { deduplicateAuthServers } from './utils/deduplicate-auth-servers.js';
 import { transpileProtectedResourceMetadata } from './utils/transpile-protected-resource-metadata.js';
@@ -259,7 +262,11 @@ export class MCPAuth {
       jwtVerify,
       remoteJwkSet,
       ...config
-    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'validateIssuer'> & BearerAuthJwtConfig = {}
+    }: Omit<
+      BearerAuthConfig,
+      'verifyAccessToken' | 'validateIssuer' | 'protectedResourceMetadataEndpoint'
+    > &
+      BearerAuthJwtConfig = {}
   ): RequestHandler {
     const { server, protectedResource } = this.config;
 
@@ -312,6 +319,10 @@ export class MCPAuth {
     return handleBearerAuth({
       verifyAccessToken: getVerifyFunction(),
       validateIssuer: this.validateIssuer,
+      protectedResourceMetadataEndpoint: cond(
+        protectedResource &&
+          new URL(protectedResourceMetadataPath, protectedResource.metadata.resource).toString()
+      ),
       ...config,
     });
   }

@@ -14,6 +14,7 @@ import {
   MCPAuthTokenVerificationError,
 } from '../errors.js';
 import { type MaybePromise } from '../types/promise.js';
+import { BearerWWWAuthenticateHeader } from '../utils/bearer-www-authenticate-header.js';
 
 declare module '@modelcontextprotocol/sdk/server/auth/types.js' {
   /**
@@ -172,6 +173,22 @@ export type BearerAuthConfig = {
    */
   requiredScopes?: string[];
   /**
+   * The URL of the protected resource metadata endpoint. This URL is used in the WWW-Authenticate
+   * response header when token validation fails.
+   *
+   * When provided, it will be included in the WWW-Authenticate header as the `resource_metadata`
+   * parameter, which points to the OAuth 2.0 Protected Resource Metadata document.
+   *
+   * Example:
+   * If set to "https://api.example.com/.well-known/oauth-protected-resource",
+   * the WWW-Authenticate header will include:
+   * ```
+   * WWW-Authenticate: Bearer
+   *   resource_metadata="https://api.example.com/.well-known/oauth-protected-resource"
+   * ```
+   */
+  protectedResourceMetadataEndpoint?: string;
+  /**
    * Whether to show detailed error information in the response. This is useful for debugging
    * during development, but should be disabled in production to avoid leaking sensitive
    * information.
@@ -201,22 +218,39 @@ const getBearerTokenFromHeaders = (headers: IncomingHttpHeaders): string => {
   return token;
 };
 
-const handleError = (error: unknown, response: Response, showErrorDetails = false): void => {
+const handleError = (
+  error: unknown,
+  response: Response,
+  protectedResourceMetadataEndpoint: string | undefined,
+  showErrorDetails = false
+): void => {
+  const wwwAuthenticateHeader = new BearerWWWAuthenticateHeader();
+
   if (error instanceof MCPAuthTokenVerificationError || error instanceof MCPAuthBearerAuthError) {
-    response.set(
-      'WWW-Authenticate',
-      `Bearer error="${error.code}", error_description="${error.message}"`
-    );
+    wwwAuthenticateHeader.setParameter('error', error.code);
+    wwwAuthenticateHeader.setParameter('error_description', error.message);
   }
 
   if (error instanceof MCPAuthTokenVerificationError) {
-    response.status(401).json(snakecaseKeys(error.toJson(showErrorDetails)));
+    wwwAuthenticateHeader.setParameter('resource_metadata', protectedResourceMetadataEndpoint);
+
+    response
+      .set(wwwAuthenticateHeader.headerName, wwwAuthenticateHeader.toString())
+      .status(401)
+      .json(snakecaseKeys(error.toJson(showErrorDetails)));
     return;
   }
 
   if (error instanceof MCPAuthBearerAuthError) {
+    const statusCode = error.code === 'missing_required_scopes' ? 403 : 401;
+
+    if (statusCode === 401) {
+      wwwAuthenticateHeader.setParameter('resource_metadata', protectedResourceMetadataEndpoint);
+    }
+
     response
-      .status(error.code === 'missing_required_scopes' ? 403 : 401)
+      .set(wwwAuthenticateHeader.headerName, wwwAuthenticateHeader.toString())
+      .status(statusCode)
       .json(snakecaseKeys(error.toJson(showErrorDetails)));
     return;
   }
@@ -262,6 +296,7 @@ export const handleBearerAuth = ({
   validateIssuer,
   requiredScopes,
   audience,
+  protectedResourceMetadataEndpoint,
   showErrorDetails,
 }: BearerAuthConfig): RequestHandler => {
   if (typeof verifyAccessToken !== 'function') {
@@ -315,7 +350,7 @@ export const handleBearerAuth = ({
       next();
     } catch (error) {
       console.error('Error during Bearer auth:', error);
-      handleError(error, response, showErrorDetails);
+      handleError(error, response, protectedResourceMetadataEndpoint, showErrorDetails);
     }
   };
 
