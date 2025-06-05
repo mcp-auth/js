@@ -122,8 +122,17 @@ if (!MCP_AUTH_ISSUER) {
   throw new Error('MCP_AUTH_ISSUER environment variable is required');
 }
 
+const authServerConfig = await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' });
+
 const mcpAuth = new MCPAuth({
-  server: await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' }),
+  server: authServerConfig,
+  protectedResource: {
+    metadata: {
+      resource: 'http://localhost:3001',
+      authorizationServers: [authServerConfig],
+      scopesSupported: ['read:todos', 'create:todos', 'delete:todos'],
+    },
+  },
 });
 
 const PORT = 3001;

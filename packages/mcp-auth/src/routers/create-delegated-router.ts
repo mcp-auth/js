@@ -2,7 +2,11 @@ import cors from 'cors';
 import { Router } from 'express';
 import snakecaseKeys from 'snakecase-keys';
 
-import { type CamelCaseAuthorizationServerMetadata } from '../types/oauth.js';
+import {
+  type CamelCaseProtectedResourceMetadata,
+  type CamelCaseAuthorizationServerMetadata,
+} from '../types/oauth.js';
+import { protectedResourceMetadataPath } from '../types/protected-resource.js';
 import { serverMetadataPaths } from '../utils/fetch-server-config.js';
 
 /**
@@ -26,19 +30,35 @@ import { serverMetadataPaths } from '../utils/fetch-server-config.js';
  * app.use('/auth', delegatedRouter);
  * ```
  *
- * @param metadata The metadata of the authorization server in camelCase format.
+ * @param serverMetadata The metadata of the authorization server in camelCase format.
  * @returns An Express router that serves the metadata at the {@link serverMetadataPaths.oauth}
  * endpoint.
  */
-export const createDelegatedRouter = (metadata: CamelCaseAuthorizationServerMetadata): Router => {
+export const createDelegatedRouter = ({
+  serverMetadata,
+  protectedResourceMetadata,
+}: {
+  serverMetadata?: CamelCaseAuthorizationServerMetadata;
+  protectedResourceMetadata?: CamelCaseProtectedResourceMetadata;
+}): Router => {
   // eslint-disable-next-line new-cap
   const router = Router();
 
-  // Apply CORS middleware to allow cross-origin requests to the OAuth metadata endpoint.
-  router.use(serverMetadataPaths.oauth, cors());
-  router.get(serverMetadataPaths.oauth, (_, response) => {
-    response.status(200).json(snakecaseKeys(metadata));
-  });
+  if (serverMetadata) {
+    // Apply CORS middleware to allow cross-origin requests to the OAuth metadata endpoint.
+    router.use(serverMetadataPaths.oauth, cors());
+    router.get(serverMetadataPaths.oauth, (_, response) => {
+      response.status(200).json(snakecaseKeys(serverMetadata));
+    });
+  }
+
+  if (protectedResourceMetadata) {
+    // Apply CORS middleware to allow cross-origin requests to the protected resource metadata endpoint.
+    router.use(protectedResourceMetadataPath, cors());
+    router.get(protectedResourceMetadataPath, (_, response) => {
+      response.status(200).json(snakecaseKeys(protectedResourceMetadata));
+    });
+  }
 
   return router;
 };
