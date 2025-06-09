@@ -150,7 +150,11 @@ const protectedResourceMetadataObject = Object.freeze({
    */
   authorization_servers: z.array(z.string()).optional(),
   /**
-   * URL of the protected resource's JSON Web Key (JWK) Set document containing public keys for signature verification.
+   * URL of the protected resource's JSON Web Key (JWK) Set document. This document contains the public keys
+   * that can be used to verify digital signatures of responses or data returned by this protected resource.
+   * This differs from the authorization server's jwks_uri which is used for token validation. When the protected
+   * resource signs its responses, clients can fetch these public keys to verify the authenticity and integrity
+   * of the received data.
    */
   jwks_uri: z.string().optional(),
   /**
@@ -199,7 +203,10 @@ const protectedResourceMetadataObject = Object.freeze({
   dpop_bound_access_tokens_required: z.boolean().optional(),
   /**
    * A signed JWT containing metadata parameters as claims. The JWT must be signed using JWS and include
-   * an 'iss' claim. Values in signed metadata take precedence over plain JSON values.
+   * an 'iss' claim. This field provides a way to cryptographically verify the authenticity of the metadata
+   * itself. The signature can be verified using the public keys available at the `jwks_uri` endpoint.
+   * When present, the values in this signed metadata take precedence over the corresponding plain
+   * JSON values in this metadata document. This helps prevent tampering with the resource metadata.
    */
   signed_metadata: z.string().optional(),
 });
