@@ -227,12 +227,15 @@ const handleError = (
   const wwwAuthenticateHeader = new BearerWWWAuthenticateHeader();
 
   if (error instanceof MCPAuthTokenVerificationError || error instanceof MCPAuthBearerAuthError) {
-    wwwAuthenticateHeader.setParameter('error', error.code);
-    wwwAuthenticateHeader.setParameter('error_description', error.message);
+    wwwAuthenticateHeader.setParameterIfValueExists('error', error.code);
+    wwwAuthenticateHeader.setParameterIfValueExists('error_description', error.message);
   }
 
   if (error instanceof MCPAuthTokenVerificationError) {
-    wwwAuthenticateHeader.setParameter('resource_metadata', protectedResourceMetadataEndpoint);
+    wwwAuthenticateHeader.setParameterIfValueExists(
+      'resource_metadata',
+      protectedResourceMetadataEndpoint
+    );
 
     response
       .set(wwwAuthenticateHeader.headerName, wwwAuthenticateHeader.toString())
@@ -245,7 +248,10 @@ const handleError = (
     const statusCode = error.code === 'missing_required_scopes' ? 403 : 401;
 
     if (statusCode === 401) {
-      wwwAuthenticateHeader.setParameter('resource_metadata', protectedResourceMetadataEndpoint);
+      wwwAuthenticateHeader.setParameterIfValueExists(
+        'resource_metadata',
+        protectedResourceMetadataEndpoint
+      );
     }
 
     response

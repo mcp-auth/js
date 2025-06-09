@@ -20,7 +20,7 @@ export class BearerWWWAuthenticateHeader {
    * @param param The parameter name
    * @param value The parameter value, if undefined the parameter will not be set
    */
-  setParameter(param: string, value?: string) {
+  setParameterIfValueExists(param: string, value?: string) {
     if (value) {
       this.authParams.set(param, value);
     }
