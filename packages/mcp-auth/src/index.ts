@@ -254,7 +254,7 @@ export class MCPAuth {
       ...config
     }: Omit<
       BearerAuthConfig,
-      'verifyAccessToken' | 'validateIssuer' | 'protectedResourceMetadataEndpoint'
+      'verifyAccessToken' | 'issuer' | 'protectedResourceMetadataEndpoint'
     > &
       BearerAuthJwtConfig = {}
   ): RequestHandler {
@@ -274,18 +274,14 @@ export class MCPAuth {
               });
             }
 
-            const authServer = this.getAuthServerMetadataByIssuer(unverifiedJwtPayload.iss);
+            /**
+             * This is a pre-check step before the actual verification of the JWT.
+             * Validates the issuer before JWT verification to ensure we have a corresponding
+             * authorization server with JWKS URI to verify the token.
+             */
+            this.validateIssuer(unverifiedJwtPayload.iss);
 
-            if (!authServer) {
-              throw new MCPAuthBearerAuthError('invalid_issuer', {
-                expected: this.availableAuthServers
-                  .map((authServer) => authServer.metadata.issuer)
-                  .join(', '),
-                actual: unverifiedJwtPayload.iss,
-              });
-            }
-
-            const { jwksUri } = authServer;
+            const { jwksUri } = this.getAuthServerMetadataByIssuer(unverifiedJwtPayload.iss) ?? {};
 
             if (!jwksUri) {
               throw new MCPAuthAuthServerError('missing_jwks_uri');
@@ -302,7 +298,7 @@ export class MCPAuth {
 
     return handleBearerAuth({
       verifyAccessToken: getVerifyFunction(),
-      validateIssuer: this.validateIssuer,
+      issuer: this.validateIssuer,
       protectedResourceMetadataEndpoint: cond(
         'protectedResource' in this.config &&
           new URL(

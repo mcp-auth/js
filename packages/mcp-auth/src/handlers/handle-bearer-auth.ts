@@ -147,11 +147,16 @@ export type BearerAuthConfig = {
    */
   verifyAccessToken: VerifyAccessTokenFunction;
   /**
-   * Function for validating the issuer of the access token.
+   * A string representing a valid issuer, or a function for validating the issuer of the access token.
    *
-   * @see {@link ValidateIssuerFunction} for more details.
+   * If a string is provided, it will be used as the expected issuer value for direct comparison.
+   *
+   * If a function is provided, it should validate the issuer according to the rules in
+   * {@link ValidateIssuerFunction}.
+   *
+   * @see {@link ValidateIssuerFunction} for more details about the validation function.
    */
-  validateIssuer: ValidateIssuerFunction;
+  issuer: string | ValidateIssuerFunction;
   /**
    * The expected audience of the access token (`aud` claim). This is typically the resource server
    * (API) that the token is intended for. If not provided, the audience check will be skipped.
@@ -299,7 +304,7 @@ const handleError = (
  */
 export const handleBearerAuth = ({
   verifyAccessToken,
-  validateIssuer,
+  issuer,
   requiredScopes,
   audience,
   protectedResourceMetadataEndpoint,
@@ -311,9 +316,9 @@ export const handleBearerAuth = ({
     );
   }
 
-  if (typeof validateIssuer !== 'function') {
+  if (typeof issuer !== 'function' && typeof issuer !== 'string') {
     throw new TypeError(
-      '`validateIssuer` must be a function that takes an issuer and throws an `MCPAuthBearerAuthError` if the issuer is not valid.'
+      '`issuer` must be either a string or a function that validates the token issuer.'
     );
   }
 
@@ -322,7 +327,18 @@ export const handleBearerAuth = ({
       const token = getBearerTokenFromHeaders(request.headers);
       const authInfo = await verifyAccessToken(token);
 
-      validateIssuer(authInfo.issuer);
+      if (typeof issuer === 'function') {
+        issuer(authInfo.issuer);
+      } else {
+        // When issuer is provided as a string, directly compare it with the token's issuer value
+        // eslint-disable-next-line no-lonely-if
+        if (authInfo.issuer !== issuer) {
+          throw new MCPAuthBearerAuthError('invalid_issuer', {
+            expected: issuer,
+            actual: authInfo.issuer,
+          });
+        }
+      }
 
       if (
         audience &&
