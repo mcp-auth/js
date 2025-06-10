@@ -125,7 +125,6 @@ if (!MCP_AUTH_ISSUER) {
 const authServerConfig = await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' });
 
 const mcpAuth = new MCPAuth({
-  server: authServerConfig,
   /**
    * Todo @xiaoyijun remove this once the protected resource metadata is supported, this is only for demonstration purpose in pull request.
    */
@@ -141,7 +140,7 @@ const mcpAuth = new MCPAuth({
 const PORT = 3001;
 const app = express();
 
-app.use(mcpAuth.delegatedRouter());
+app.use(mcpAuth.protectedResourceMetadataRouter());
 app.use(mcpAuth.bearerAuth('jwt'));
 
 // Below is the boilerplate code from MCP SDK documentation
