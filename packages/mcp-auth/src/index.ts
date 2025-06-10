@@ -39,7 +39,12 @@ export * from './utils/create-verify-jwt.js';
  * Config for the {@link MCPAuth} class.
  */
 export type MCPAuthConfig =
-  | { server: AuthServerConfig }
+  | {
+      /**
+       * @deprecated Use `protectedResource` config instead.
+       */
+      server: AuthServerConfig;
+    }
   | { protectedResource: ProtectedResourceConfig };
 
 export type VerifyAccessTokenMode = 'jwt';
