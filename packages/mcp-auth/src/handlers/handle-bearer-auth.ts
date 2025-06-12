@@ -3,7 +3,7 @@ import { type IncomingHttpHeaders } from 'node:http';
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 // eslint-disable-next-line unused-imports/no-unused-imports
 import { type DEFAULT_REQUEST_TIMEOUT_MSEC } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import { condObject } from '@silverhand/essentials';
+import { cond, condObject } from '@silverhand/essentials';
 import { type Response, type RequestHandler } from 'express';
 import snakecaseKeys from 'snakecase-keys';
 
@@ -15,6 +15,7 @@ import {
 } from '../errors.js';
 import { type MaybePromise } from '../types/promise.js';
 import { BearerWWWAuthenticateHeader } from '../utils/bearer-www-authenticate-header.js';
+import { createResourceMetadataEndpoint } from '../utils/create-resource-metadata-endpoint.js';
 
 declare module '@modelcontextprotocol/sdk/server/auth/types.js' {
   /**
@@ -178,21 +179,11 @@ export type BearerAuthConfig = {
    */
   requiredScopes?: string[];
   /**
-   * The URL of the protected resource metadata endpoint. This URL is used in the WWW-Authenticate
-   * response header when token validation fails.
-   *
-   * When provided, it will be included in the WWW-Authenticate header as the `resource_metadata`
-   * parameter, which points to the OAuth 2.0 Protected Resource Metadata document.
-   *
-   * Example:
-   * If set to "https://api.example.com/.well-known/oauth-protected-resource",
-   * the WWW-Authenticate header will include:
-   * ```
-   * WWW-Authenticate: Bearer
-   *   resource_metadata="https://api.example.com/.well-known/oauth-protected-resource"
-   * ```
+   * The identifier of the protected resource. When provided, the handler will use the
+   * authorization servers configured for this resource to validate the received token.
+   * It's required when using the handler with a `protectedResource` configuration.
    */
-  protectedResourceMetadataEndpoint?: string;
+  resource?: string;
   /**
    * Whether to show detailed error information in the response. This is useful for debugging
    * during development, but should be disabled in production to avoid leaking sensitive
@@ -226,7 +217,7 @@ const getBearerTokenFromHeaders = (headers: IncomingHttpHeaders): string => {
 const handleError = (
   error: unknown,
   response: Response,
-  protectedResourceMetadataEndpoint: string | undefined,
+  resourceMetadataEndpoint: string | undefined,
   showErrorDetails = false
 ): void => {
   const wwwAuthenticateHeader = new BearerWWWAuthenticateHeader();
@@ -237,10 +228,7 @@ const handleError = (
   }
 
   if (error instanceof MCPAuthTokenVerificationError) {
-    wwwAuthenticateHeader.setParameterIfValueExists(
-      'resource_metadata',
-      protectedResourceMetadataEndpoint
-    );
+    wwwAuthenticateHeader.setParameterIfValueExists('resource_metadata', resourceMetadataEndpoint);
 
     response
       .set(wwwAuthenticateHeader.headerName, wwwAuthenticateHeader.toString())
@@ -255,7 +243,7 @@ const handleError = (
     if (statusCode === 401) {
       wwwAuthenticateHeader.setParameterIfValueExists(
         'resource_metadata',
-        protectedResourceMetadataEndpoint
+        resourceMetadataEndpoint
       );
     }
 
@@ -307,7 +295,7 @@ export const handleBearerAuth = ({
   issuer,
   requiredScopes,
   audience,
-  protectedResourceMetadataEndpoint,
+  resource,
   showErrorDetails,
 }: BearerAuthConfig): RequestHandler => {
   if (typeof verifyAccessToken !== 'function') {
@@ -372,7 +360,12 @@ export const handleBearerAuth = ({
       next();
     } catch (error) {
       console.error('Error during Bearer auth:', error);
-      handleError(error, response, protectedResourceMetadataEndpoint, showErrorDetails);
+      handleError(
+        error,
+        response,
+        cond(resource && createResourceMetadataEndpoint(resource).toString()),
+        showErrorDetails
+      );
     }
   };
 

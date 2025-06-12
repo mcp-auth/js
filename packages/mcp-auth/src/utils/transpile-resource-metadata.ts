@@ -1,5 +1,7 @@
+import { cond } from '@silverhand/essentials';
+
 import { type CamelCaseProtectedResourceMetadata } from '../types/oauth.js';
-import { type ProtectedResourceConfig } from '../types/protected-resource.js';
+import { type ResourceServerConfig } from '../types/resource-server.js';
 
 /**
  * Transforms protected resource metadata from MCPAuth config format to the standard OAuth 2.0 Protected Resource Metadata format.
@@ -26,7 +28,7 @@ import { type ProtectedResourceConfig } from '../types/protected-resource.js';
  *   scopesSupported: ['read', 'write']
  * };
  *
- * const standardMetadata = transpileProtectedResourceMetadata(configMetadata);
+ * const standardMetadata = transpileResourceMetadata(configMetadata);
  * // Result:
  * // {
  * //   resource: 'https://api.example.com',
@@ -38,9 +40,18 @@ import { type ProtectedResourceConfig } from '../types/protected-resource.js';
  * @param metadata The protected resource metadata in MCPAuth config format
  * @returns The metadata transformed to standard OAuth 2.0 Protected Resource Metadata format
  */
-export const transpileProtectedResourceMetadata = (
-  metadata: ProtectedResourceConfig['metadata']
-): CamelCaseProtectedResourceMetadata => ({
-  ...metadata,
-  authorizationServers: metadata.authorizationServers?.map((server) => server.metadata.issuer),
-});
+export const transpileResourceMetadata = (
+  metadata: ResourceServerConfig['metadata']
+): CamelCaseProtectedResourceMetadata => {
+  const { authorizationServers, ...rest } = metadata;
+
+  return {
+    ...rest,
+    ...cond(
+      authorizationServers &&
+        authorizationServers.length > 0 && {
+          authorizationServers: authorizationServers.map(({ metadata }) => metadata.issuer),
+        }
+    ),
+  };
+};

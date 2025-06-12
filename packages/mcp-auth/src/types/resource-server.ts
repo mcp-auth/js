@@ -4,10 +4,8 @@ import { type CamelCaseProtectedResourceMetadata } from './oauth.js';
 /**
  * Configuration for protected resource servers (RFC 9728).
  */
-export type ProtectedResourceConfig = {
+export type ResourceServerConfig = {
   metadata: Omit<CamelCaseProtectedResourceMetadata, 'authorizationServers'> & {
     authorizationServers?: AuthServerConfig[];
   };
 };
-
-export const protectedResourceMetadataPath = '/.well-known/oauth-protected-resource';

@@ -7,12 +7,6 @@ import { condString } from '@silverhand/essentials';
 export class BearerWWWAuthenticateHeader {
   private readonly authParams = new Map<string, string>();
 
-  constructor(params?: Record<string, string>) {
-    if (params) {
-      this.authParams = new Map(Object.entries(params));
-    }
-  }
-
   /**
    * Sets an authentication parameter.
    * If the value is undefined or empty string, the parameter will be ignored.

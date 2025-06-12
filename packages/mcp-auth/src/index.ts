@@ -1,30 +1,19 @@
-import { cond } from '@silverhand/essentials';
+import { type Optional } from '@silverhand/essentials';
 import type { RequestHandler, Router } from 'express';
-import {
-  createRemoteJWKSet,
-  type RemoteJWKSetOptions,
-  type JWTVerifyOptions,
-  decodeJwt,
-} from 'jose';
+import { type RemoteJWKSetOptions, type JWTVerifyOptions } from 'jose';
 
-import { MCPAuthAuthServerError, MCPAuthBearerAuthError } from './errors.js';
+import { TokenVerifier, type VerifyJwtConfig } from './auth/token-verifier.js';
+import { MCPAuthAuthServerError } from './errors.js';
 import {
   handleBearerAuth,
   type VerifyAccessTokenFunction,
   type BearerAuthConfig,
-  type ValidateIssuerFunction,
 } from './handlers/handle-bearer-auth.js';
-import {
-  createDelegatedRouter,
-  createProtectedResourceMetadataRouter,
-} from './routers/create-delegated-router.js';
+import { createDelegatedRouter } from './routers/create-delegated-router.js';
+import { createResourceMetadataRouter } from './routers/create-resource-metadata-router.js';
 import { type AuthServerConfig } from './types/auth-server.js';
-import {
-  protectedResourceMetadataPath,
-  type ProtectedResourceConfig,
-} from './types/protected-resource.js';
-import { createVerifyJwt } from './utils/create-verify-jwt.js';
-import { transpileProtectedResourceMetadata } from './utils/transpile-protected-resource-metadata.js';
+import { type ResourceServerConfig } from './types/resource-server.js';
+import { transpileResourceMetadata } from './utils/transpile-resource-metadata.js';
 import { validateServerConfig } from './utils/validate-server-config.js';
 
 export * from './types/oauth.js';
@@ -35,17 +24,21 @@ export * from './utils/fetch-server-config.js';
 export * from './utils/validate-server-config.js';
 export * from './utils/create-verify-jwt.js';
 
+type AuthServerModeConfig = {
+  /**
+   * @deprecated Use `ResourceServerModeConfig` config instead.
+   */
+  server: AuthServerConfig;
+};
+
+type ResourceServerModeConfig = {
+  protectedResource: ResourceServerConfig | ResourceServerConfig[];
+};
+
 /**
  * Config for the {@link MCPAuth} class.
  */
-export type MCPAuthConfig =
-  | {
-      /**
-       * @deprecated Use `protectedResource` config instead.
-       */
-      server: AuthServerConfig;
-    }
-  | { protectedResource: ProtectedResourceConfig };
+export type MCPAuthConfig = AuthServerModeConfig | ResourceServerModeConfig;
 
 export type VerifyAccessTokenMode = 'jwt';
 
@@ -116,16 +109,9 @@ export type BearerAuthJwtConfig = {
  * ```
  */
 export class MCPAuth {
-  /**
-   * Deduplicated list of authorization servers, combined from:
-   * 1. The configured auth server metadata (if provided)
-   * 2. Authorization servers defined in protectedResource metadata
-   *
-   * These auth servers are used for dynamic JWT validation, where the issuer
-   * in the JWT token is matched against available auth servers to find the
-   * correct JWKS endpoint for token verification.
-   */
-  private readonly availableAuthServers: AuthServerConfig[];
+  /** @deprecated */
+  private readonly authServerTokenVerifier: Optional<TokenVerifier> = undefined;
+  private readonly resourceServerTokenVerifiers: Optional<Map<string, TokenVerifier>> = undefined;
 
   constructor(public readonly config: MCPAuthConfig) {
     if (!('server' in config || 'protectedResource' in config)) {
@@ -145,10 +131,34 @@ export class MCPAuth {
       console.warn(
         'The `server` config is deprecated. Please migrate to using only `protectedResource`.'
       );
+
+      this.validateAuthServerConfig(config);
+
+      this.authServerTokenVerifier = new TokenVerifier([config.server]);
+
+      return;
     }
 
-    this.availableAuthServers = this.getAuthServersFromConfig(config);
-    this.validateAuthServers(this.availableAuthServers);
+    if ('protectedResource' in config) {
+      this.validateResourceServerConfig(config);
+
+      this.resourceServerTokenVerifiers = new Map();
+
+      const resourceServerConfigs = Array.isArray(config.protectedResource)
+        ? config.protectedResource
+        : [config.protectedResource];
+
+      for (const resourceServerConfig of resourceServerConfigs) {
+        const {
+          metadata: { resource, authorizationServers },
+        } = resourceServerConfig;
+
+        this.resourceServerTokenVerifiers.set(
+          resource,
+          new TokenVerifier(authorizationServers ?? [])
+        );
+      }
+    }
   }
 
   /**
@@ -173,7 +183,7 @@ export class MCPAuth {
   delegatedRouter(): Router {
     if (!('server' in this.config)) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause: 'No authorization server is provided.',
+        cause: 'No authorization server configuration is provided.',
       });
     }
 
@@ -183,12 +193,15 @@ export class MCPAuth {
   protectedResourceMetadataRouter(): Router {
     if (!('protectedResource' in this.config)) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause: 'No protected resource metadata is provided.',
+        cause: 'No resource server configuration is provided.',
       });
     }
 
-    return createProtectedResourceMetadataRouter(
-      transpileProtectedResourceMetadata(this.config.protectedResource.metadata)
+    const { protectedResource } = this.config;
+    const configs = Array.isArray(protectedResource) ? protectedResource : [protectedResource];
+
+    return createResourceMetadataRouter(
+      configs.map((config) => transpileResourceMetadata(config.metadata))
     );
   }
 
@@ -244,12 +257,12 @@ export class MCPAuth {
      * Optional configuration for the Bearer auth handler, including JWT verification options and
      * remote JWK set options.
      *
-     * @see {@link BearerAuthJwtConfig} for the available configuration options for JWT
+     * @see {@link VerifyJwtConfig} for the available configuration options for JWT
      * verification.
      * @see {@link BearerAuthConfig} for the available configuration options (excluding
      * `verifyAccessToken` and `issuer`).
      */
-    config?: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & BearerAuthJwtConfig
+    config?: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & VerifyJwtConfig
   ): RequestHandler;
   bearerAuth(
     modeOrVerify: VerifyAccessTokenMode | VerifyAccessTokenFunction,
@@ -257,12 +270,29 @@ export class MCPAuth {
       jwtVerify,
       remoteJwkSet,
       ...config
-    }: Omit<
-      BearerAuthConfig,
-      'verifyAccessToken' | 'issuer' | 'protectedResourceMetadataEndpoint'
-    > &
-      BearerAuthJwtConfig = {}
+    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & BearerAuthJwtConfig = {}
   ): RequestHandler {
+    if ('protectedResource' in this.config && !config.resource) {
+      throw new MCPAuthAuthServerError('invalid_server_config', {
+        cause:
+          'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResource` configuration.',
+      });
+    }
+
+    const tokenVerifier = this.getTokenVerifier(config.resource);
+
+    if (!tokenVerifier) {
+      if ('protectedResource' in this.config) {
+        throw new MCPAuthAuthServerError('invalid_server_config', {
+          cause: `No token verifier found for the specified resource: \`${config.resource}\`. \\nPlease ensure that this resource is correctly configured in the \`protectedResource\` array in the MCPAuth constructor.`,
+        });
+      }
+
+      throw new MCPAuthAuthServerError('invalid_server_config', {
+        cause: 'No authorization server or resource server configuration is provided.',
+      });
+    }
+
     const getVerifyFunction = () => {
       if (typeof modeOrVerify === 'function') {
         return modeOrVerify;
@@ -270,113 +300,89 @@ export class MCPAuth {
 
       switch (modeOrVerify) {
         case 'jwt': {
-          return async (token: string) => {
-            const unverifiedJwtPayload = decodeJwt(token);
-
-            if (!unverifiedJwtPayload.iss) {
-              throw new MCPAuthBearerAuthError('invalid_token', {
-                cause: 'The JWT payload does not contain the `iss` field or it is malformed.',
-              });
-            }
-
-            /**
-             * This is a pre-check step before the actual verification of the JWT.
-             * Validates the issuer before JWT verification to ensure we have a corresponding
-             * authorization server with JWKS URI to verify the token.
-             */
-            this.validateIssuer(unverifiedJwtPayload.iss);
-
-            const { jwksUri } = this.getAuthServerMetadataByIssuer(unverifiedJwtPayload.iss) ?? {};
-
-            if (!jwksUri) {
-              throw new MCPAuthAuthServerError('missing_jwks_uri');
-            }
-
-            return createVerifyJwt(
-              createRemoteJWKSet(new URL(jwksUri), remoteJwkSet),
-              jwtVerify
-            )(token);
-          };
+          return tokenVerifier.createVerifyJwtFunction({ jwtVerify, remoteJwkSet });
         }
       }
     };
 
     return handleBearerAuth({
       verifyAccessToken: getVerifyFunction(),
-      issuer: this.validateIssuer,
-      protectedResourceMetadataEndpoint: cond(
-        'protectedResource' in this.config &&
-          new URL(
-            protectedResourceMetadataPath,
-            this.config.protectedResource.metadata.resource
-          ).toString()
-      ),
+      issuer: tokenVerifier.validateJwtIssuer,
       ...config,
     });
   }
 
-  private readonly getAuthServerMetadataByIssuer = (tokenIssuer: string) => {
-    return this.availableAuthServers.find(
-      (authServer) => authServer.metadata.issuer === tokenIssuer
-    )?.metadata;
-  };
-
-  private readonly validateIssuer: ValidateIssuerFunction = (tokenIssuer: string) => {
-    const authServer = this.getAuthServerMetadataByIssuer(tokenIssuer);
-
-    if (!authServer) {
-      throw new MCPAuthBearerAuthError('invalid_issuer', {
-        expected: this.availableAuthServers
-          .map((authServer) => authServer.metadata.issuer)
-          .join(', '),
-        actual: tokenIssuer,
-      });
-    }
-  };
-
-  private readonly getAuthServersFromConfig = (config: MCPAuthConfig) => {
-    if ('server' in config) {
-      return [config.server];
+  private getTokenVerifier(resource?: string): Optional<TokenVerifier> {
+    if ('server' in this.config) {
+      return this.authServerTokenVerifier;
     }
 
-    if ('protectedResource' in config) {
-      return config.protectedResource.metadata.authorizationServers ?? [];
-    }
-
-    return [];
-  };
-
-  private readonly validateAuthServers = (authServers: AuthServerConfig[]) => {
-    if (authServers.length === 0) {
+    if (!resource) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause: 'No authorization server is provided.',
+        cause:
+          'Missing `resource` to identify the protected resource metadata when using a `protectedResource` configuration.',
       });
     }
 
-    const uniqueAuthServers = new Map<string, AuthServerConfig>();
+    return this.resourceServerTokenVerifiers?.get(resource);
+  }
 
-    for (const authServer of this.availableAuthServers) {
-      const { issuer } = authServer.metadata;
+  private validateAuthServerConfig(config: AuthServerModeConfig) {
+    const { server } = config;
+    this.validateAuthServer(server);
+  }
 
-      if (uniqueAuthServers.has(issuer)) {
+  private validateResourceServerConfig(config: ResourceServerModeConfig) {
+    const { protectedResource } = config;
+
+    const resourceConfigs = Array.isArray(protectedResource)
+      ? protectedResource
+      : [protectedResource];
+
+    const uniqueResource = new Map<string, boolean>();
+
+    for (const resourceConfig of resourceConfigs) {
+      const {
+        metadata: { resource, authorizationServers },
+      } = resourceConfig;
+
+      if (uniqueResource.has(resource)) {
         throw new MCPAuthAuthServerError('invalid_server_config', {
-          cause: `The authorization server (issuer: \`${issuer}\`) is duplicated.`,
+          cause: `The resource metadata (\`${resource}\`) is duplicated.`,
         });
       }
 
-      const result = validateServerConfig(authServer);
+      uniqueResource.set(resource, true);
 
-      if (!result.isValid) {
-        throw new MCPAuthAuthServerError('invalid_server_config', {
-          ...result,
-        });
-      }
+      const uniqueAuthServers = new Map<string, boolean>();
 
-      if (result.warnings.length > 0) {
-        console.warn(
-          `The authorization server (issuer: \`${authServer.metadata.issuer}\`) configuration has warnings:\n\n  - ${result.warnings.map(({ description }) => description).join('\n  - ')}\n`
-        );
+      for (const authServer of authorizationServers ?? []) {
+        const { issuer } = authServer.metadata;
+        if (uniqueAuthServers.has(issuer)) {
+          throw new MCPAuthAuthServerError('invalid_server_config', {
+            cause: `The authorization server (\`${issuer}\`) for resource \`${resource}\` is duplicated.`,
+          });
+        }
+        uniqueAuthServers.set(issuer, true);
+
+        this.validateAuthServer(authServer);
       }
     }
-  };
+  }
+
+  private validateAuthServer(authServer: AuthServerConfig) {
+    const result = validateServerConfig(authServer);
+
+    if (!result.isValid) {
+      throw new MCPAuthAuthServerError('invalid_server_config', {
+        ...result,
+      });
+    }
+
+    if (result.warnings.length > 0) {
+      console.warn(
+        `The authorization server (issuer: \`${authServer.metadata.issuer}\`) configuration has warnings:\n\n  - ${result.warnings.map(({ description }) => description).join('\n  - ')}\n`
+      );
+    }
+  }
 }
