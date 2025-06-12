@@ -60,6 +60,7 @@ export const createResourceMetadataRouter = (
   for (const metadata of metadataList) {
     const resourceMetadataEndpoint = createResourceMetadataEndpoint(metadata.resource);
 
+    // Enable CORS for the metadata endpoint, as it's intended for public consumption.
     router.use(resourceMetadataEndpoint.pathname, cors());
     router.get(resourceMetadataEndpoint.pathname, (_, response) => {
       response.status(200).json(snakecaseKeys(metadata));

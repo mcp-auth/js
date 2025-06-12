@@ -1,6 +1,5 @@
 import { type Optional } from '@silverhand/essentials';
 import type { RequestHandler, Router } from 'express';
-import { type RemoteJWKSetOptions, type JWTVerifyOptions } from 'jose';
 
 import { TokenVerifier, type VerifyJwtConfig } from './auth/token-verifier.js';
 import { MCPAuthAuthServerError } from './errors.js';
@@ -24,53 +23,92 @@ export * from './utils/fetch-server-config.js';
 export * from './utils/validate-server-config.js';
 export * from './utils/create-verify-jwt.js';
 
+/**
+ * @internal
+ * Configuration for the legacy, MCP server as authorization server mode.
+ */
 type AuthServerModeConfig = {
   /**
-   * @deprecated Use `ResourceServerModeConfig` config instead.
+   * The single authorization server configuration.
+   * @deprecated Use `protectedResource` config instead.
    */
   server: AuthServerConfig;
 };
 
+/**
+ * @internal
+ * Configuration for the modern, MCP server as resource server mode.
+ */
 type ResourceServerModeConfig = {
+  /**
+   * A single resource server configuration or an array of them.
+   */
   protectedResource: ResourceServerConfig | ResourceServerConfig[];
 };
 
 /**
- * Config for the {@link MCPAuth} class.
+ * Config for the {@link MCPAuth} class, supporting either a single legacy `authorization server`
+ * or the `resource server` configuration.
  */
 export type MCPAuthConfig = AuthServerModeConfig | ResourceServerModeConfig;
 
+/**
+ * The built-in verification modes supported by `bearerAuth`.
+ */
 export type VerifyAccessTokenMode = 'jwt';
 
 /**
- * Configuration for the Bearer auth handler when using JWT verification.
- */
-export type BearerAuthJwtConfig = {
-  /**
-   * Options to pass to the `jose` library's `jwtVerify` function.
-   *
-   * The issuer option is hardcoded to the authorization server’s issuer.
-   *
-   * @see {@link JWTVerifyOptions} for the type definition of the options.
-   */
-  jwtVerify?: JWTVerifyOptions;
-  /**
-   * Options to pass to the `jose` library's `createRemoteJWKSet` function.
-   *
-   * @see {@link RemoteJWKSetOptions} for the type definition of the options.
-   */
-  remoteJwkSet?: RemoteJWKSetOptions;
-};
-
-/**
- * The main class for the mcp-auth library, which provides methods to create routers and useful
- * handlers for authentication and authorization in MCP servers.
+ * The main class for the mcp-auth library. It acts as a factory and registry for creating
+ * authentication policies for your protected resources.
  *
- * @see {@link https://mcp-auth.dev | MCP Auth} for more information about the library and its
- * usage.
+ * It is initialized with your server configurations and provides a `bearerAuth` method
+ * to generate Express middleware for token-based authentication.
  *
  * @example
- * An example integrating with a remote OIDC provider:
+ * ### Modern Usage with `protectedResource`
+ *
+ * This is the recommended approach for new applications.
+ *
+ * ```ts
+ * import express from 'express';
+ * import { MCPAuth, fetchServerConfig } from 'mcp-auth';
+ *
+ * const app = express();
+ *
+ * const resourceIdentifier = 'https://api.example.com/notes';
+ * const authServerConfig = await fetchServerConfig('https://auth.logto.io/oidc', { type: 'oidc' });
+ *
+ * const mcpAuth = new MCPAuth({
+ *   protectedResource: {
+ *     metadata: {
+ *       resource: resourceIdentifier,
+ *       authorizationServers: [authServerConfig],
+ *       scopesSupported: ['read:notes', 'write:notes'],
+ *     },
+ *   },
+ * });
+ *
+ * // Mount the router to handle Protected Resource Metadata
+ * app.use(mcpAuth.protectedResourceMetadataRouter());
+ *
+ * // Protect an API endpoint for the configured resource
+ * app.get(
+ *   '/notes',
+ *   mcpAuth.bearerAuth('jwt', {
+ *     resource: resourceIdentifier, // Specify which resource this endpoint belongs to
+ *     audience: resourceIdentifier, // Optionally, validate the 'aud' claim
+ *     requiredScopes: ['read:notes'],
+ *   }),
+ *   (req, res) => {
+ *     console.log('Auth info:', req.auth);
+ *     res.json({ notes: [] });
+ *   },
+ * );
+ * ```
+ *
+ * ### Legacy Usage with `server` (Deprecated)
+ *
+ * This approach is supported for backward compatibility.
  *
  * ```ts
  * import express from 'express';
@@ -84,10 +122,10 @@ export type BearerAuthJwtConfig = {
  *   ),
  * });
  *
- * // Mount the router to handle OAuth 2.0 Authorization Server Metadata
+ * // Mount the router to handle legacy Authorization Server Metadata
  * app.use(mcpAuth.delegatedRouter());
  *
- * // Use the Bearer auth handler the MCP route
+ * // Protect an endpoint using the default policy
  * app.get(
  *   '/mcp',
  *   mcpAuth.bearerAuth('jwt', { requiredScopes: ['read', 'write'] }),
@@ -96,23 +134,19 @@ export type BearerAuthJwtConfig = {
  *     // Handle the MCP request here
  *   },
  * );
- *
- * // Use the auth info in the MCP callback
- * server.tool(
- *   'add',
- *   { a: z.number(), b: z.number() },
- *   async ({ a, b }, { authInfo }) => {
- *     console.log('Auth Info:', authInfo);
- *    // ...
- *   },
- * );
  * ```
  */
 export class MCPAuth {
-  /** @deprecated */
+  /** The `TokenVerifier` for the legacy `server` configuration. */
   private readonly authServerTokenVerifier: Optional<TokenVerifier> = undefined;
+  /** A map of `TokenVerifier` instances for each configured resource server, keyed by resource identifier. */
   private readonly resourceServerTokenVerifiers: Optional<Map<string, TokenVerifier>> = undefined;
 
+  /**
+   * Creates an instance of MCPAuth.
+   * It validates the entire configuration upfront to fail fast on errors.
+   * @param config The authentication configuration.
+   */
   constructor(public readonly config: MCPAuthConfig) {
     if (!('server' in config || 'protectedResource' in config)) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
@@ -127,27 +161,27 @@ export class MCPAuth {
       });
     }
 
+    // --- Legacy `server` mode initialization ---
     if ('server' in config) {
       console.warn(
         'The `server` config is deprecated. Please migrate to using only `protectedResource`.'
       );
 
       this.validateAuthServerConfig(config);
-
       this.authServerTokenVerifier = new TokenVerifier([config.server]);
-
       return;
     }
 
+    // --- `protectedResource` mode initialization ---
     if ('protectedResource' in config) {
       this.validateResourceServerConfig(config);
-
       this.resourceServerTokenVerifiers = new Map();
 
       const resourceServerConfigs = Array.isArray(config.protectedResource)
         ? config.protectedResource
         : [config.protectedResource];
 
+      // Create a dedicated TokenVerifier for each unique resource server configuration.
       for (const resourceServerConfig of resourceServerConfigs) {
         const {
           metadata: { resource, authorizationServers },
@@ -162,10 +196,10 @@ export class MCPAuth {
   }
 
   /**
-   * @deprecated Use {@link protectedResourceMetadataRouter} instead.
-   *
-   * Creates a delegated router that serves the OAuth 2.0 Authorization Server Metadata endpoint
+   * Creates a delegated router for serving legacy OAuth 2.0 Authorization Server Metadata endpoint
    * (`/.well-known/oauth-authorization-server`) with the metadata provided to the instance.
+   *
+   * @deprecated Use {@link protectedResourceMetadataRouter} instead.
    *
    * @example
    * ```ts
@@ -190,6 +224,27 @@ export class MCPAuth {
     return createDelegatedRouter(this.config.server.metadata);
   }
 
+  /**
+   * Creates a router that serves the OAuth 2.0 Protected Resource Metadata endpoint
+   * for all configured resources.
+   *
+   * This router automatically creates the correct `.well-known` endpoints for each
+   * resource identifier provided in your configuration.
+   *
+   * @example
+   * ```ts
+   * import express from 'express';
+   * import { MCPAuth } from 'mcp-auth';
+   *
+   * // Assuming mcpAuth is initialized with one or more `protectedResource` configs
+   * const mcpAuth: MCPAuth;
+   * const app = express();
+   *
+   * // This will serve metadata at `/.well-known/oauth-protected-resource/...`
+   * // based on your resource identifiers.
+   * app.use(mcpAuth.protectedResourceMetadataRouter());
+   * ```
+   */
   protectedResourceMetadataRouter(): Router {
     if (!('protectedResource' in this.config)) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
@@ -270,8 +325,10 @@ export class MCPAuth {
       jwtVerify,
       remoteJwkSet,
       ...config
-    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & BearerAuthJwtConfig = {}
+    }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & VerifyJwtConfig = {}
   ): RequestHandler {
+    // The `resource` property in the config is crucial for selecting the correct TokenVerifier
+    // in `protectedResource` mode. This check ensures it's not forgotten.
     if ('protectedResource' in this.config && !config.resource) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
         cause:
@@ -279,12 +336,13 @@ export class MCPAuth {
       });
     }
 
+    // Resolve the correct policy object (TokenVerifier) based on the configuration.
     const tokenVerifier = this.getTokenVerifier(config.resource);
 
     if (!tokenVerifier) {
       if ('protectedResource' in this.config) {
         throw new MCPAuthAuthServerError('invalid_server_config', {
-          cause: `No token verifier found for the specified resource: \`${config.resource}\`. \\nPlease ensure that this resource is correctly configured in the \`protectedResource\` array in the MCPAuth constructor.`,
+          cause: `No token verifier found for the specified resource: \`${config.resource}\`. Please ensure that this resource is correctly configured in the \`protectedResource\` array in the MCPAuth constructor.`,
         });
       }
 
@@ -298,6 +356,7 @@ export class MCPAuth {
         return modeOrVerify;
       }
 
+      // If a mode is provided, create the verification function from the TokenVerifier.
       switch (modeOrVerify) {
         case 'jwt': {
           return tokenVerifier.createVerifyJwtFunction({ jwtVerify, remoteJwkSet });
@@ -312,11 +371,20 @@ export class MCPAuth {
     });
   }
 
+  /**
+   * A private helper to resolve the correct `TokenVerifier` based on the current
+   * configuration mode and the provided resource identifier.
+   */
   private getTokenVerifier(resource?: string): Optional<TokenVerifier> {
+    // In legacy `server` mode, always use the single default verifier.
     if ('server' in this.config) {
       return this.authServerTokenVerifier;
     }
 
+    /**
+     * In `protectedResource` mode, a resource identifier is required to look up
+     * the correct verifier from the map.
+     */
     if (!resource) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
         cause:
@@ -327,11 +395,18 @@ export class MCPAuth {
     return this.resourceServerTokenVerifiers?.get(resource);
   }
 
+  /**
+   * Validates the configuration for the legacy `server` mode.
+   */
   private validateAuthServerConfig(config: AuthServerModeConfig) {
     const { server } = config;
     this.validateAuthServer(server);
   }
 
+  /**
+   * Validates the configuration for the modern `protectedResource` mode,
+   * checking for duplicate resources and related authorization servers.
+   */
   private validateResourceServerConfig(config: ResourceServerModeConfig) {
     const { protectedResource } = config;
 
@@ -370,6 +445,9 @@ export class MCPAuth {
     }
   }
 
+  /**
+   * Validates a single `AuthServerConfig` object.
+   */
   private validateAuthServer(authServer: AuthServerConfig) {
     const result = validateServerConfig(authServer);
 
