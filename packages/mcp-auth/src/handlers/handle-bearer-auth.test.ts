@@ -50,6 +50,21 @@ describe('handleBearerAuth()', () => {
   });
 });
 
+it('should throw an error if issuer is not a string or a function', () => {
+  expect(() =>
+    handleBearerAuth({
+      // @ts-expect-error
+      verifyAccessToken: noop,
+      // @ts-expect-error
+      issuer: 123,
+      requiredScopes: [],
+      audience: undefined,
+    })
+  ).toThrowErrorMatchingInlineSnapshot(
+    '[TypeError: `issuer` must be either a string or a function that validates the token issuer.]'
+  );
+});
+
 describe('handleBearerAuth() returned function with invalid headers or tokens', () => {
   const issuer = 'https://example.com';
   const requiredScopes = ['read', 'write'];

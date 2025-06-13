@@ -217,6 +217,22 @@ describe('MCPAuth class (bearerAuth)', () => {
       '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
     );
   });
+
+  it('should throw an error when resource is not specified in `protectedResource` mode', () => {
+    const resource = 'https://api.example.com/notes';
+    const auth = new MCPAuth({
+      protectedResource: {
+        metadata: {
+          resource,
+          authorizationServers: [{ type: 'oauth', metadata }],
+        },
+      },
+    });
+
+    expect(() => auth.bearerAuth('jwt')).toThrowErrorMatchingInlineSnapshot(
+      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
+    );
+  });
 });
 
 describe('MCPAuth class (delegatedRouter)', () => {
