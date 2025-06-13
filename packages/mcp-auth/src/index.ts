@@ -24,10 +24,10 @@ export * from './utils/validate-server-config.js';
 export * from './utils/create-verify-jwt.js';
 
 /**
- * @internal
  * Configuration for the legacy, MCP server as authorization server mode.
+ * @deprecated Use `ResourceServerModeConfig` config instead.
  */
-type AuthServerModeConfig = {
+export type AuthServerModeConfig = {
   /**
    * The single authorization server configuration.
    * @deprecated Use `protectedResource` config instead.
@@ -36,10 +36,9 @@ type AuthServerModeConfig = {
 };
 
 /**
- * @internal
  * Configuration for the modern, MCP server as resource server mode.
  */
-type ResourceServerModeConfig = {
+export type ResourceServerModeConfig = {
   /**
    * A single resource server configuration or an array of them.
    */
@@ -327,8 +326,10 @@ export class MCPAuth {
       ...config
     }: Omit<BearerAuthConfig, 'verifyAccessToken' | 'issuer'> & VerifyJwtConfig = {}
   ): RequestHandler {
-    // The `resource` property in the config is crucial for selecting the correct TokenVerifier
-    // in `protectedResource` mode. This check ensures it's not forgotten.
+    /**
+     * The `resource` property in the config is crucial for selecting the correct TokenVerifier
+     * in `protectedResource` mode. This check ensures it's not forgotten.
+     */
     if ('protectedResource' in this.config && !config.resource) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
         cause:

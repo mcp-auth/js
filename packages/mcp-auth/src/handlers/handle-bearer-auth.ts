@@ -3,7 +3,7 @@ import { type IncomingHttpHeaders } from 'node:http';
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 // eslint-disable-next-line unused-imports/no-unused-imports
 import { type DEFAULT_REQUEST_TIMEOUT_MSEC } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import { cond, condObject } from '@silverhand/essentials';
+import { cond, condObject, trySafe } from '@silverhand/essentials';
 import { type Response, type RequestHandler } from 'express';
 import snakecaseKeys from 'snakecase-keys';
 
@@ -310,6 +310,10 @@ export const handleBearerAuth = ({
     );
   }
 
+  if (typeof issuer === 'string' && !trySafe(() => new URL(issuer))) {
+    throw new TypeError(`\`issuer\` must be a valid URL.`);
+  }
+
   const bearerAuthHandler: RequestHandler = async function (request, response, next) {
     try {
       const token = getBearerTokenFromHeaders(request.headers);
@@ -318,7 +322,9 @@ export const handleBearerAuth = ({
       if (typeof issuer === 'function') {
         issuer(authInfo.issuer);
       } else {
-        // When issuer is provided as a string, directly compare it with the token's issuer value
+        /**
+         * When issuer is provided as a string, directly compare it with the token's issuer value
+         */
         // eslint-disable-next-line no-lonely-if
         if (authInfo.issuer !== issuer) {
           throw new MCPAuthBearerAuthError('invalid_issuer', {

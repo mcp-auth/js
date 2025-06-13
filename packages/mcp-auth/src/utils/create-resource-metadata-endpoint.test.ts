@@ -5,7 +5,7 @@ import { createResourceMetadataEndpoint } from './create-resource-metadata-endpo
 describe('createResourceMetadataEndpoint', () => {
   it('should throw an error if the resource is not a valid URL', () => {
     expect(() => createResourceMetadataEndpoint('not a url')).toThrow(
-      'Invalid resource: not a url'
+      'Invalid resource identifier URI: not a url'
     );
   });
 

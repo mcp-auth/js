@@ -1,3 +1,4 @@
+import { trySafe } from '@silverhand/essentials';
 import {
   createRemoteJWKSet,
   decodeJwt,
@@ -93,10 +94,17 @@ export class TokenVerifier {
    * @returns The issuer (`iss` claim) from the token payload.
    */
   private getUnverifiedJwtIssuer(token: string): string {
-    const payload = decodeJwt(token);
+    const payload = trySafe(() => decodeJwt(token));
+
+    if (!payload) {
+      throw new MCPAuthBearerAuthError('invalid_token', {
+        cause: 'The JWT is malformed or invalid.',
+      });
+    }
+
     if (!payload.iss) {
       throw new MCPAuthBearerAuthError('invalid_token', {
-        cause: 'The JWT payload does not contain the `iss` field or it is malformed.',
+        cause: 'The JWT payload does not contain the `iss` field.',
       });
     }
 
