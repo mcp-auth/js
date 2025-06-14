@@ -44,7 +44,7 @@ export type VerifyAccessTokenMode = 'jwt';
  * to generate Express middleware for token-based authentication.
  *
  * @example
- * ### Modern Usage with `protectedResource`
+ * ### Usage in `resource server` mode
  *
  * This is the recommended approach for new applications.
  *
@@ -85,7 +85,7 @@ export type VerifyAccessTokenMode = 'jwt';
  * );
  * ```
  *
- * ### Legacy Usage with `server` (Deprecated)
+ * ### Legacy Usage in `authorization server` mode (Deprecated)
  *
  * This approach is supported for backward compatibility.
  *
