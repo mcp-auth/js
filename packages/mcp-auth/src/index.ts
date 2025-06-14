@@ -1,19 +1,21 @@
-import { type Optional } from '@silverhand/essentials';
 import type { RequestHandler, Router } from 'express';
 
-import { TokenVerifier, type VerifyJwtConfig } from './auth/token-verifier.js';
+import {
+  AuthorizationServerHandler,
+  type AuthServerModeConfig,
+} from './auth/authorization-server-handler.js';
+import { type MCPAuthHandler } from './auth/mcp-auth-handler.js';
+import {
+  ResourceServerHandler,
+  type ResourceServerModeConfig,
+} from './auth/resource-server-handler.js';
+import { type VerifyJwtConfig } from './auth/token-verifier.js';
 import { MCPAuthAuthServerError } from './errors.js';
 import {
   handleBearerAuth,
   type VerifyAccessTokenFunction,
   type BearerAuthConfig,
 } from './handlers/handle-bearer-auth.js';
-import { createDelegatedRouter } from './routers/create-delegated-router.js';
-import { createResourceMetadataRouter } from './routers/create-resource-metadata-router.js';
-import { type AuthServerConfig } from './types/auth-server.js';
-import { type ResourceServerConfig } from './types/resource-server.js';
-import { transpileResourceMetadata } from './utils/transpile-resource-metadata.js';
-import { validateServerConfig } from './utils/validate-server-config.js';
 
 export * from './types/oauth.js';
 export * from './types/auth-server.js';
@@ -22,28 +24,6 @@ export * from './handlers/handle-bearer-auth.js';
 export * from './utils/fetch-server-config.js';
 export * from './utils/validate-server-config.js';
 export * from './utils/create-verify-jwt.js';
-
-/**
- * Configuration for the legacy, MCP server as authorization server mode.
- * @deprecated Use `ResourceServerModeConfig` config instead.
- */
-export type AuthServerModeConfig = {
-  /**
-   * The single authorization server configuration.
-   * @deprecated Use `protectedResource` config instead.
-   */
-  server: AuthServerConfig;
-};
-
-/**
- * Configuration for the modern, MCP server as resource server mode.
- */
-export type ResourceServerModeConfig = {
-  /**
-   * A single resource server configuration or an array of them.
-   */
-  protectedResource: ResourceServerConfig | ResourceServerConfig[];
-};
 
 /**
  * Config for the {@link MCPAuth} class, supporting either a single legacy `authorization server`
@@ -136,10 +116,10 @@ export type VerifyAccessTokenMode = 'jwt';
  * ```
  */
 export class MCPAuth {
-  /** The `TokenVerifier` for the legacy `server` configuration. */
-  private readonly authServerTokenVerifier: Optional<TokenVerifier> = undefined;
-  /** A map of `TokenVerifier` instances for each configured resource server, keyed by resource identifier. */
-  private readonly resourceServerTokenVerifiers: Optional<Map<string, TokenVerifier>> = undefined;
+  /**
+   * The handler instance that manages mode-specific logic.
+   */
+  private readonly authHandler: MCPAuthHandler;
 
   /**
    * Creates an instance of MCPAuth.
@@ -147,51 +127,18 @@ export class MCPAuth {
    * @param config The authentication configuration.
    */
   constructor(public readonly config: MCPAuthConfig) {
-    if (!('server' in config || 'protectedResource' in config)) {
+    if ('server' in config) {
+      this.authHandler = new AuthorizationServerHandler(config);
+      return;
+    }
+
+    if (!('protectedResource' in config)) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
         cause: 'No authorization server or protected resource metadata is provided.',
       });
     }
 
-    if ('server' in config && 'protectedResource' in config) {
-      throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause:
-          'Both `server` and `protectedResource` cannot be provided at the same time.\nPlease migrate to using only `protectedResource`.',
-      });
-    }
-
-    // --- Legacy `server` mode initialization ---
-    if ('server' in config) {
-      console.warn(
-        'The `server` config is deprecated. Please migrate to using only `protectedResource`.'
-      );
-
-      this.validateAuthServerConfig(config);
-      this.authServerTokenVerifier = new TokenVerifier([config.server]);
-      return;
-    }
-
-    // --- `protectedResource` mode initialization ---
-    if ('protectedResource' in config) {
-      this.validateResourceServerConfig(config);
-      this.resourceServerTokenVerifiers = new Map();
-
-      const resourceServerConfigs = Array.isArray(config.protectedResource)
-        ? config.protectedResource
-        : [config.protectedResource];
-
-      // Create a dedicated TokenVerifier for each unique resource server configuration.
-      for (const resourceServerConfig of resourceServerConfigs) {
-        const {
-          metadata: { resource, authorizationServers },
-        } = resourceServerConfig;
-
-        this.resourceServerTokenVerifiers.set(
-          resource,
-          new TokenVerifier(authorizationServers ?? [])
-        );
-      }
-    }
+    this.authHandler = new ResourceServerHandler(config);
   }
 
   /**
@@ -214,13 +161,7 @@ export class MCPAuth {
    * metadata provided to the instance.
    */
   delegatedRouter(): Router {
-    if (!('server' in this.config)) {
-      throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause: 'No authorization server configuration is provided.',
-      });
-    }
-
-    return createDelegatedRouter(this.config.server.metadata);
+    return this.authHandler.delegatedRouter();
   }
 
   /**
@@ -245,18 +186,7 @@ export class MCPAuth {
    * ```
    */
   protectedResourceMetadataRouter(): Router {
-    if (!('protectedResource' in this.config)) {
-      throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause: 'No resource server configuration is provided.',
-      });
-    }
-
-    const { protectedResource } = this.config;
-    const configs = Array.isArray(protectedResource) ? protectedResource : [protectedResource];
-
-    return createResourceMetadataRouter(
-      configs.map((config) => transpileResourceMetadata(config.metadata))
-    );
+    return this.authHandler.protectedResourceMetadataRouter();
   }
 
   /**
@@ -337,20 +267,7 @@ export class MCPAuth {
       });
     }
 
-    // Resolve the correct policy object (TokenVerifier) based on the configuration.
-    const tokenVerifier = this.getTokenVerifier(config.resource);
-
-    if (!tokenVerifier) {
-      if ('protectedResource' in this.config) {
-        throw new MCPAuthAuthServerError('invalid_server_config', {
-          cause: `No token verifier found for the specified resource: \`${config.resource}\`. Please ensure that this resource is correctly configured in the \`protectedResource\` array in the MCPAuth constructor.`,
-        });
-      }
-
-      throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause: 'No authorization server or resource server configuration is provided.',
-      });
-    }
+    const tokenVerifier = this.authHandler.getTokenVerifier({ resource: config.resource });
 
     const getVerifyFunction = () => {
       if (typeof modeOrVerify === 'function') {
@@ -371,97 +288,7 @@ export class MCPAuth {
       ...config,
     });
   }
-
-  /**
-   * A private helper to resolve the correct `TokenVerifier` based on the current
-   * configuration mode and the provided resource identifier.
-   */
-  private getTokenVerifier(resource?: string): Optional<TokenVerifier> {
-    // In legacy `server` mode, always use the single default verifier.
-    if ('server' in this.config) {
-      return this.authServerTokenVerifier;
-    }
-
-    /**
-     * In `protectedResource` mode, a resource identifier is required to look up
-     * the correct verifier from the map.
-     */
-    if (!resource) {
-      throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause:
-          'Missing `resource` to identify the protected resource metadata when using a `protectedResource` configuration.',
-      });
-    }
-
-    return this.resourceServerTokenVerifiers?.get(resource);
-  }
-
-  /**
-   * Validates the configuration for the legacy `server` mode.
-   */
-  private validateAuthServerConfig(config: AuthServerModeConfig) {
-    const { server } = config;
-    this.validateAuthServer(server);
-  }
-
-  /**
-   * Validates the configuration for the modern `protectedResource` mode,
-   * checking for duplicate resources and related authorization servers.
-   */
-  private validateResourceServerConfig(config: ResourceServerModeConfig) {
-    const { protectedResource } = config;
-
-    const resourceConfigs = Array.isArray(protectedResource)
-      ? protectedResource
-      : [protectedResource];
-
-    const uniqueResource = new Map<string, boolean>();
-
-    for (const resourceConfig of resourceConfigs) {
-      const {
-        metadata: { resource, authorizationServers },
-      } = resourceConfig;
-
-      if (uniqueResource.has(resource)) {
-        throw new MCPAuthAuthServerError('invalid_server_config', {
-          cause: `The resource metadata (\`${resource}\`) is duplicated.`,
-        });
-      }
-
-      uniqueResource.set(resource, true);
-
-      const uniqueAuthServers = new Map<string, boolean>();
-
-      for (const authServer of authorizationServers ?? []) {
-        const { issuer } = authServer.metadata;
-        if (uniqueAuthServers.has(issuer)) {
-          throw new MCPAuthAuthServerError('invalid_server_config', {
-            cause: `The authorization server (\`${issuer}\`) for resource \`${resource}\` is duplicated.`,
-          });
-        }
-        uniqueAuthServers.set(issuer, true);
-
-        this.validateAuthServer(authServer);
-      }
-    }
-  }
-
-  /**
-   * Validates a single `AuthServerConfig` object.
-   */
-  private validateAuthServer(authServer: AuthServerConfig) {
-    const result = validateServerConfig(authServer);
-
-    if (!result.isValid) {
-      throw new MCPAuthAuthServerError('invalid_server_config', {
-        ...result,
-      });
-    }
-
-    if (result.warnings.length > 0) {
-      console.warn(
-        `The authorization server (issuer: \`${authServer.metadata.issuer}\`) configuration has warnings:\n\n  - ${result.warnings.map(({ description }) => description).join('\n  - ')}\n`
-      );
-    }
-  }
 }
+
+export { type AuthServerModeConfig } from './auth/authorization-server-handler.js';
+export { type ResourceServerModeConfig } from './auth/resource-server-handler.js';
