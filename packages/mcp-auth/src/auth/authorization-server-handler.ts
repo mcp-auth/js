@@ -36,6 +36,11 @@ export class AuthorizationServerHandler implements MCPAuthHandler {
     this.tokenVerifier = new TokenVerifier([config.server]);
   }
 
+  /**
+   * Returns a router for serving the legacy OAuth 2.0 Authorization Server Metadata.
+   * @throws {MCPAuthAuthServerError} If not supported in the current configuration.
+   * @deprecated
+   */
   delegatedRouter(): Router {
     return createDelegatedRouter(this.config.server.metadata);
   }

@@ -1,147 +1,56 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { MCPAuth } from './index.js';
+import * as authorizationServerHandler from './auth/authorization-server-handler.js';
+import * as resourceServerHandler from './auth/resource-server-handler.js';
+import { type AuthServerConfig, MCPAuth, MCPAuthAuthServerError } from './index.js';
+import { type ResourceServerConfig } from './types/resource-server.js';
+
+const validServerConfig: AuthServerConfig = {
+  type: 'oauth',
+  metadata: {
+    issuer: 'https://example.com',
+    authorizationEndpoint: 'https://example.com/oauth/authorize',
+    tokenEndpoint: 'https://example.com/oauth/token',
+    responseTypesSupported: ['code'],
+    grantTypesSupported: ['authorization_code'],
+    codeChallengeMethodsSupported: ['S256'],
+  },
+};
+
+const validResourceConfig: ResourceServerConfig = {
+  metadata: {
+    resource: 'https://api.example.com',
+    authorizationServers: [validServerConfig],
+  },
+};
 
 describe('MCPAuth class (init)', () => {
-  it('should throw an error if the server configuration is empty or not an object', () => {
+  it('should throw an error if both `server` and `protectedResource` are not provided', () => {
+    const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
+      cause: 'No authorization server or protected resource metadata is provided.',
+    });
     // @ts-expect-error
-    expect(() => new MCPAuth({ server: { metadata: null } })).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
-    // @ts-expect-error
-    expect(() => new MCPAuth({ server: { metadata: 123 } })).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
+    expect(() => new MCPAuth({})).toThrowError(expectedError);
   });
 
-  it('should throw an error if the server metadata does not conform to the expected schema', () => {
-    expect(
-      () =>
-        new MCPAuth({
-          server: {
-            // @ts-expect-error
-            metadata: {
-              responseTypesSupported: ['code'],
-              grantTypesSupported: ['authorization_code'],
-              codeChallengeMethodsSupported: ['S256'],
-            },
-          },
-        })
-    ).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
+  it('should instantiate a new instance of `AuthorizationServerHandler` if `server` is provided', () => {
+    const authServerHandlerConstructorSpy = vi
+      .spyOn(authorizationServerHandler, 'AuthorizationServerHandler')
+      .mockImplementationOnce(vi.fn());
+    const _ = new MCPAuth({ server: validServerConfig });
+    expect(authServerHandlerConstructorSpy).toHaveBeenCalledWith({ server: validServerConfig });
+    authServerHandlerConstructorSpy.mockRestore();
   });
 
-  it('should not throw an error if the server configuration is valid with warnings', () => {
-    const consoleWarnSpy = vi.spyOn(console, 'warn');
-    expect(
-      () =>
-        new MCPAuth({
-          server: {
-            type: 'oauth',
-            metadata: {
-              issuer: 'https://example.com',
-              authorizationEndpoint: 'https://example.com/oauth/authorize',
-              tokenEndpoint: 'https://example.com/oauth/token',
-              responseTypesSupported: ['code'],
-              grantTypesSupported: ['authorization_code'],
-              codeChallengeMethodsSupported: ['S256'],
-            },
-          },
-        })
-    ).not.toThrow();
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
-      'The authorization server (issuer: `https://example.com`) configuration has warnings:\n\n  - Dynamic Client Registration (RFC 7591) is not supported by the server.\n'
-    );
-  });
-
-  it('should throw an error if both `server` and `protectedResource` are provided', () => {
-    expect(
-      // @ts-expect-error
-      () => new MCPAuth({ server: {}, protectedResource: {} })
-    ).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
-  });
-
-  it('should throw an error if no `server` or `protectedResource` is provided', () => {
-    // @ts-expect-error
-    expect(() => new MCPAuth({})).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
-  });
-
-  it('should initialize successfully with a single protected resource', () => {
-    const resource = 'https://api.example.com/notes';
-    expect(
-      () =>
-        new MCPAuth({
-          protectedResource: {
-            metadata: {
-              resource,
-              authorizationServers: [
-                {
-                  type: 'oauth',
-                  metadata: {
-                    issuer: 'https://auth.example.com',
-                    authorizationEndpoint: 'https://auth.example.com/auth',
-                    tokenEndpoint: 'https://auth.example.com/token',
-                    responseTypesSupported: ['code'],
-                    grantTypesSupported: ['authorization_code'],
-                    codeChallengeMethodsSupported: ['S256'],
-                  },
-                },
-              ],
-            },
-          },
-        })
-    ).not.toThrow();
-  });
-
-  it('should initialize successfully with multiple protected resources', () => {
-    expect(
-      () =>
-        new MCPAuth({
-          protectedResource: [
-            {
-              metadata: {
-                resource: 'https://api.example.com/notes',
-                authorizationServers: [
-                  {
-                    type: 'oauth',
-                    metadata: {
-                      issuer: 'https://auth.example.com',
-                      authorizationEndpoint: 'https://auth.example.com/auth',
-                      tokenEndpoint: 'https://auth.example.com/token',
-                      responseTypesSupported: ['code'],
-                      grantTypesSupported: ['authorization_code'],
-                      codeChallengeMethodsSupported: ['S256'],
-                    },
-                  },
-                ],
-              },
-            },
-            {
-              metadata: {
-                resource: 'https://api.example.com/photos',
-                authorizationServers: [
-                  {
-                    type: 'oauth',
-                    metadata: {
-                      issuer: 'https://auth.example.com',
-                      authorizationEndpoint: 'https://auth.example.com/auth',
-                      tokenEndpoint: 'https://auth.example.com/token',
-                      responseTypesSupported: ['code'],
-                      grantTypesSupported: ['authorization_code'],
-                      codeChallengeMethodsSupported: ['S256'],
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-        })
-    ).not.toThrow();
+  it('should instantiate a new instance of `ResourceServerHandler` if `protectedResource` is provided', () => {
+    const resourceServerHandlerConstructorSpy = vi
+      .spyOn(resourceServerHandler, 'ResourceServerHandler')
+      .mockImplementationOnce(vi.fn());
+    const _ = new MCPAuth({ protectedResource: validResourceConfig });
+    expect(resourceServerHandlerConstructorSpy).toHaveBeenCalledWith({
+      protectedResource: validResourceConfig,
+    });
+    resourceServerHandlerConstructorSpy.mockRestore();
   });
 });
 
@@ -180,150 +89,76 @@ describe('MCPAuth class (bearerAuth)', () => {
     expect(handler.name).toBe('bearerAuthHandler');
   });
 
-  it('should create a bearer auth handler with JWT and resource in `protectedResource` mode', () => {
-    const resource = 'https://api.example.com/notes';
+  it('should create a bearer auth handler with JWT and resource in `resource server` mode', () => {
     const auth = new MCPAuth({
-      protectedResource: {
-        metadata: {
-          resource,
-          authorizationServers: [
-            {
-              type: 'oauth',
-              metadata: { ...metadata, jwksUri: 'https://example.com/jwks' },
-            },
-          ],
-        },
-      },
+      protectedResource: validResourceConfig,
     });
-    const handler = auth.bearerAuth('jwt', { resource });
+    const handler = auth.bearerAuth('jwt', { resource: validResourceConfig.metadata.resource });
     expect(handler).toBeInstanceOf(Function);
     expect(handler.name).toBe('bearerAuthHandler');
   });
 
-  it('should throw an error when resource is not found in `protectedResource` mode', () => {
-    const resource = 'https://api.example.com/notes';
+  it('should throw an error when resource is not specified in `resource server` mode', () => {
     const auth = new MCPAuth({
-      protectedResource: {
-        metadata: {
-          resource,
-          authorizationServers: [{ type: 'oauth', metadata }],
-        },
-      },
+      protectedResource: validResourceConfig,
     });
 
-    expect(() =>
-      auth.bearerAuth('jwt', { resource: 'https://api.example.com/non-existent' })
-    ).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
-  });
-
-  it('should throw an error when resource is not specified in `protectedResource` mode', () => {
-    const resource = 'https://api.example.com/notes';
-    const auth = new MCPAuth({
-      protectedResource: {
-        metadata: {
-          resource,
-          authorizationServers: [{ type: 'oauth', metadata }],
-        },
-      },
+    const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
+      cause:
+        'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResource` configuration.',
     });
 
-    expect(() => auth.bearerAuth('jwt')).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
+    // No resource in the bearerAuth config
+    expect(() => auth.bearerAuth('jwt')).toThrowError(expectedError);
   });
 });
 
 describe('MCPAuth class (delegatedRouter)', () => {
-  const metadata = Object.freeze({
-    issuer: 'https://example.com',
-    authorizationEndpoint: 'https://example.com/oauth/authorize',
-    tokenEndpoint: 'https://example.com/oauth/token',
-    responseTypesSupported: ['code'],
-    grantTypesSupported: ['authorization_code'],
-    codeChallengeMethodsSupported: ['S256'],
+  it('should call `delegatedRouter` method of the `AuthorizationServerHandler` in authorization server mode', () => {
+    const delegatedRouterSpy = vi
+      .spyOn(authorizationServerHandler.AuthorizationServerHandler.prototype, 'delegatedRouter')
+      .mockImplementationOnce(vi.fn());
+    const auth = new MCPAuth({ server: validServerConfig });
+    auth.delegatedRouter();
+    expect(delegatedRouterSpy).toHaveBeenCalled();
+    delegatedRouterSpy.mockRestore();
   });
 
-  it('should throw an error if not in `server` mode', () => {
-    const auth = new MCPAuth({
-      protectedResource: {
-        metadata: {
-          resource: 'foo',
-          authorizationServers: [],
-        },
-      },
-    });
-    expect(() => auth.delegatedRouter()).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
-  });
-
-  it('should return a router in `server` mode', () => {
-    const auth = new MCPAuth({
-      server: {
-        type: 'oauth',
-        metadata,
-      },
-    });
-    const router = auth.delegatedRouter();
-    expect(router).toBeInstanceOf(Function);
-
-    expect(router.stack).toContainEqual(
-      expect.objectContaining({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        route: expect.objectContaining({
-          path: '/.well-known/oauth-authorization-server',
-          methods: { get: true },
-        }),
-      })
-    );
+  it('should call `delegatedRouter` method of the `ResourceServerHandler` in resource server mode', () => {
+    const delegatedRouterSpy = vi
+      .spyOn(resourceServerHandler.ResourceServerHandler.prototype, 'delegatedRouter')
+      .mockImplementationOnce(vi.fn());
+    const auth = new MCPAuth({ protectedResource: validResourceConfig });
+    auth.delegatedRouter();
+    expect(delegatedRouterSpy).toHaveBeenCalled();
+    delegatedRouterSpy.mockRestore();
   });
 });
 
 describe('MCPAuth class (protectedResourceMetadataRouter)', () => {
-  const metadata = Object.freeze({
-    issuer: 'https://example.com',
-    authorizationEndpoint: 'https://example.com/oauth/authorize',
-    tokenEndpoint: 'https://example.com/oauth/token',
-    responseTypesSupported: ['code'],
-    grantTypesSupported: ['authorization_code'],
-    codeChallengeMethodsSupported: ['S256'],
+  it('should call `protectedResourceMetadataRouter` method of the `AuthorizationServerHandler` in authorization server mode', () => {
+    const protectedResourceMetadataRouterSpy = vi
+      .spyOn(
+        authorizationServerHandler.AuthorizationServerHandler.prototype,
+        'protectedResourceMetadataRouter'
+      )
+      .mockImplementationOnce(vi.fn());
+    const auth = new MCPAuth({ server: validServerConfig });
+    auth.protectedResourceMetadataRouter();
+    expect(protectedResourceMetadataRouterSpy).toHaveBeenCalled();
+    protectedResourceMetadataRouterSpy.mockRestore();
   });
 
-  it('should throw an error if not in `protectedResource` mode', () => {
-    const auth = new MCPAuth({
-      server: {
-        type: 'oauth',
-        metadata,
-      },
-    });
-    expect(() => auth.protectedResourceMetadataRouter()).toThrowErrorMatchingInlineSnapshot(
-      '[MCPAuthAuthServerError: The server configuration does not match the MCP specification.]'
-    );
-  });
-
-  it('should return a router in `protectedResource` mode', () => {
-    const auth = new MCPAuth({
-      protectedResource: {
-        metadata: {
-          resource: 'https://api.example.com',
-          scopesSupported: ['read'],
-          authorizationServers: [],
-        },
-      },
-    });
-    const router = auth.protectedResourceMetadataRouter();
-    expect(router).toBeInstanceOf(Function);
-
-    expect(router.stack).toContainEqual(
-      expect.objectContaining({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        route: expect.objectContaining({
-          path: '/.well-known/oauth-protected-resource',
-          methods: { get: true },
-        }),
-      })
-    );
+  it('should call `protectedResourceMetadataRouter` method of the `ResourceServerHandler` in resource server mode', () => {
+    const protectedResourceMetadataRouterSpy = vi
+      .spyOn(
+        resourceServerHandler.ResourceServerHandler.prototype,
+        'protectedResourceMetadataRouter'
+      )
+      .mockImplementationOnce(vi.fn());
+    const auth = new MCPAuth({ protectedResource: validResourceConfig });
+    auth.protectedResourceMetadataRouter();
+    expect(protectedResourceMetadataRouterSpy).toHaveBeenCalled();
+    protectedResourceMetadataRouterSpy.mockRestore();
   });
 });
