@@ -48,10 +48,9 @@ export const transpileResourceMetadata = (
   return {
     ...rest,
     ...cond(
-      authorizationServers &&
-        authorizationServers.length > 0 && {
-          authorizationServers: authorizationServers.map(({ metadata }) => metadata.issuer),
-        }
+      authorizationServers?.length && {
+        authorizationServers: authorizationServers.map(({ metadata }) => metadata.issuer),
+      }
     ),
   };
 };

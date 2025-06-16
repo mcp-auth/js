@@ -92,6 +92,7 @@ export class TokenVerifier {
    * This is a necessary first step to determine which authorization server's keys to use.
    * @param token The raw JWT string.
    * @returns The issuer (`iss` claim) from the token payload.
+   * @throws {@link MCPAuthBearerAuthError} if the JWT is malformed or invalid.
    */
   private getUnverifiedJwtIssuer(token: string): string {
     const payload = trySafe(() => decodeJwt(token));

@@ -6,7 +6,7 @@ import { type CamelCaseAuthorizationServerMetadata } from '../types/oauth.js';
 import { serverMetadataPaths } from '../utils/fetch-server-config.js';
 
 // eslint-disable-next-line unused-imports/no-unused-imports
-import { createResourceMetadataRouter } from './create-resource-metadata-router.js';
+import { type createResourceMetadataRouter } from './create-resource-metadata-router.js';
 
 /**
  * @deprecated Use {@link createResourceMetadataRouter} instead.

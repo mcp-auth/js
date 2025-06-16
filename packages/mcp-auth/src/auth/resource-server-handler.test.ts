@@ -61,7 +61,7 @@ describe('ResourceServerHandler', () => {
   describe('constructor', () => {
     it('should throw an error for duplicate resource identifiers', () => {
       const mockConfig: ResourceServerModeConfig = {
-        protectedResource: [resourceServerConfig1, resourceServerConfig1],
+        protectedResources: [resourceServerConfig1, resourceServerConfig1],
       };
       const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
         cause: `The resource metadata (\`${resourceServerConfig1.metadata.resource}\`) is duplicated.`,
@@ -77,7 +77,7 @@ describe('ResourceServerHandler', () => {
         },
       };
       const mockConfig: ResourceServerModeConfig = {
-        protectedResource: resourceWithDuplicatedAuthServer,
+        protectedResources: resourceWithDuplicatedAuthServer,
       };
       const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
         cause: `The authorization server (\`${authServer1.metadata.issuer}\`) for resource \`https://api.example.com/resource3\` is duplicated.`,
@@ -87,7 +87,7 @@ describe('ResourceServerHandler', () => {
 
     it('should validate each authorization server and create a TokenVerifier for each resource', () => {
       const mockConfig: ResourceServerModeConfig = {
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       };
       const _ = new ResourceServerHandler(mockConfig);
 
@@ -110,7 +110,7 @@ describe('ResourceServerHandler', () => {
         },
       };
       const mockConfig: ResourceServerModeConfig = {
-        protectedResource: [resourceServerConfig1, resourceServerConfig3],
+        protectedResources: [resourceServerConfig1, resourceServerConfig3],
       };
 
       expect(() => new ResourceServerHandler(mockConfig)).not.toThrow();
@@ -119,24 +119,12 @@ describe('ResourceServerHandler', () => {
     });
   });
 
-  describe('delegatedRouter', () => {
-    it('should throw MCPAuthAuthServerError', () => {
-      const handler = new ResourceServerHandler({
-        protectedResource: resourceServerConfig1,
-      });
-      const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
-        cause: '`delegatedRouter` is not available in `resource server` mode.',
-      });
-      expect(() => handler.delegatedRouter()).toThrow(expectedError);
-    });
-  });
-
-  describe('protectedResourceMetadataRouter', () => {
+  describe('createMetadataRouter', () => {
     it('should create a router with metadata for a single resource', () => {
       const handler = new ResourceServerHandler({
-        protectedResource: resourceServerConfig1,
+        protectedResources: resourceServerConfig1,
       });
-      const router = handler.protectedResourceMetadataRouter();
+      const router = handler.createMetadataRouter();
       const resourcePath = new URL(resourceServerConfig1.metadata.resource).pathname;
 
       expect(router.stack).toContainEqual(
@@ -152,9 +140,9 @@ describe('ResourceServerHandler', () => {
 
     it('should create a router with metadata for multiple resources', () => {
       const handler = new ResourceServerHandler({
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       });
-      const router = handler.protectedResourceMetadataRouter();
+      const router = handler.createMetadataRouter();
       const resourcePath1 = new URL(resourceServerConfig1.metadata.resource).pathname;
       const resourcePath2 = new URL(resourceServerConfig2.metadata.resource).pathname;
 
@@ -182,29 +170,29 @@ describe('ResourceServerHandler', () => {
   describe('getTokenVerifier', () => {
     it('should throw an error if resource is not specified', () => {
       const handler = new ResourceServerHandler({
-        protectedResource: resourceServerConfig1,
+        protectedResources: resourceServerConfig1,
       });
       const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
         cause:
-          'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResource` configuration.',
+          'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResources` configuration.',
       });
       expect(() => handler.getTokenVerifier({})).toThrow(expectedError);
     });
 
     it('should throw an error if resource is not found', () => {
       const handler = new ResourceServerHandler({
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       });
       const unknownResource = 'https://api.example.com/unknown';
       const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
-        cause: `No token verifier found for the specified resource: \`${unknownResource}\`. Please ensure that this resource is correctly configured in the \`protectedResource\` array in the MCPAuth constructor.`,
+        cause: `No token verifier found for the specified resource: \`${unknownResource}\`. Please ensure that this resource is correctly configured in the \`protectedResources\` array in the MCPAuth constructor.`,
       });
       expect(() => handler.getTokenVerifier({ resource: unknownResource })).toThrow(expectedError);
     });
 
     it('should return a TokenVerifier instance for a specific resource', () => {
       const handler = new ResourceServerHandler({
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       });
       /**
        * The constructor was called twice, creating two mock verifier instances.

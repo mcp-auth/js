@@ -6,7 +6,7 @@ import { type ResourceServerConfig } from '../types/resource-server.js';
 import { transpileResourceMetadata } from '../utils/transpile-resource-metadata.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
-import { type MCPAuthHandler } from './mcp-auth-handler.js';
+import { MCPAuthHandler } from './mcp-auth-handler.js';
 import { TokenVerifier } from './token-verifier.js';
 
 /**
@@ -16,20 +16,21 @@ export type ResourceServerModeConfig = {
   /**
    * A single resource server configuration or an array of them.
    */
-  protectedResource: ResourceServerConfig | ResourceServerConfig[];
+  protectedResources: ResourceServerConfig | ResourceServerConfig[];
 };
 /**
- * Handles the authentication logic for the modern `protectedResource` mode.
+ * Handles the authentication logic for the MCP server as resource server mode.
  */
-export class ResourceServerHandler implements MCPAuthHandler {
+export class ResourceServerHandler extends MCPAuthHandler {
   /** A map of `TokenVerifier` instances for each configured resource server, keyed by resource identifier. */
   private readonly tokenVerifiers: Map<string, TokenVerifier>;
 
   constructor(private readonly config: ResourceServerModeConfig) {
-    this.validateConfig(this.resourcesConfig);
+    super();
+    this.#validateConfig(this.resourcesConfigs);
 
     this.tokenVerifiers = new Map();
-    for (const resourceConfig of this.resourcesConfig) {
+    for (const resourceConfig of this.resourcesConfigs) {
       const {
         metadata: { resource, authorizationServers },
       } = resourceConfig;
@@ -37,15 +38,9 @@ export class ResourceServerHandler implements MCPAuthHandler {
     }
   }
 
-  delegatedRouter(): Router {
-    throw new MCPAuthAuthServerError('invalid_server_config', {
-      cause: '`delegatedRouter` is not available in `resource server` mode.',
-    });
-  }
-
-  protectedResourceMetadataRouter(): Router {
+  createMetadataRouter(): Router {
     return createResourceMetadataRouter(
-      this.resourcesConfig.map((config) => transpileResourceMetadata(config.metadata))
+      this.resourcesConfigs.map((config) => transpileResourceMetadata(config.metadata))
     );
   }
 
@@ -55,7 +50,7 @@ export class ResourceServerHandler implements MCPAuthHandler {
     if (!resource) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
         cause:
-          'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResource` configuration.',
+          'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResources` configuration.',
       });
     }
 
@@ -63,14 +58,14 @@ export class ResourceServerHandler implements MCPAuthHandler {
 
     if (!verifier) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
-        cause: `No token verifier found for the specified resource: \`${resource}\`. Please ensure that this resource is correctly configured in the \`protectedResource\` array in the MCPAuth constructor.`,
+        cause: `No token verifier found for the specified resource: \`${resource}\`. Please ensure that this resource is correctly configured in the \`protectedResources\` array in the MCPAuth constructor.`,
       });
     }
 
     return verifier;
   }
 
-  private validateConfig(resourceConfigs: ResourceServerConfig[]) {
+  #validateConfig(resourceConfigs: ResourceServerConfig[]) {
     const uniqueResource = new Set<string>();
 
     for (const {
@@ -97,9 +92,9 @@ export class ResourceServerHandler implements MCPAuthHandler {
     }
   }
 
-  private get resourcesConfig() {
-    return Array.isArray(this.config.protectedResource)
-      ? this.config.protectedResource
-      : [this.config.protectedResource];
+  private get resourcesConfigs() {
+    return Array.isArray(this.config.protectedResources)
+      ? this.config.protectedResources
+      : [this.config.protectedResources];
   }
 }

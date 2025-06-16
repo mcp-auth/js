@@ -25,7 +25,7 @@ const validResourceConfig: ResourceServerConfig = {
 };
 
 describe('MCPAuth class (init)', () => {
-  it('should throw an error if both `server` and `protectedResource` are not provided', () => {
+  it('should throw an error if both `server` and `protectedResources` are not provided', () => {
     const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
       cause: 'No authorization server or protected resource metadata is provided.',
     });
@@ -42,13 +42,13 @@ describe('MCPAuth class (init)', () => {
     authServerHandlerConstructorSpy.mockRestore();
   });
 
-  it('should instantiate a new instance of `ResourceServerHandler` if `protectedResource` is provided', () => {
+  it('should instantiate a new instance of `ResourceServerHandler` if `protectedResources` is provided', () => {
     const resourceServerHandlerConstructorSpy = vi
       .spyOn(resourceServerHandler, 'ResourceServerHandler')
       .mockImplementationOnce(vi.fn());
-    const _ = new MCPAuth({ protectedResource: validResourceConfig });
+    const _ = new MCPAuth({ protectedResources: validResourceConfig });
     expect(resourceServerHandlerConstructorSpy).toHaveBeenCalledWith({
-      protectedResource: validResourceConfig,
+      protectedResources: validResourceConfig,
     });
     resourceServerHandlerConstructorSpy.mockRestore();
   });
@@ -91,7 +91,7 @@ describe('MCPAuth class (bearerAuth)', () => {
 
   it('should create a bearer auth handler with JWT and resource in `resource server` mode', () => {
     const auth = new MCPAuth({
-      protectedResource: validResourceConfig,
+      protectedResources: validResourceConfig,
     });
     const handler = auth.bearerAuth('jwt', { resource: validResourceConfig.metadata.resource });
     expect(handler).toBeInstanceOf(Function);
@@ -100,12 +100,12 @@ describe('MCPAuth class (bearerAuth)', () => {
 
   it('should throw an error when resource is not specified in `resource server` mode', () => {
     const auth = new MCPAuth({
-      protectedResource: validResourceConfig,
+      protectedResources: validResourceConfig,
     });
 
     const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
       cause:
-        'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResource` configuration.',
+        'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResources` configuration.',
     });
 
     // No resource in the bearerAuth config
@@ -114,21 +114,22 @@ describe('MCPAuth class (bearerAuth)', () => {
 });
 
 describe('MCPAuth class (delegatedRouter)', () => {
-  it('should call `delegatedRouter` method of the `AuthorizationServerHandler` in authorization server mode', () => {
-    const delegatedRouterSpy = vi
-      .spyOn(authorizationServerHandler.AuthorizationServerHandler.prototype, 'delegatedRouter')
-      .mockImplementationOnce(vi.fn());
-    const auth = new MCPAuth({ server: validServerConfig });
-    auth.delegatedRouter();
-    expect(delegatedRouterSpy).toHaveBeenCalled();
-    delegatedRouterSpy.mockRestore();
+  it('should throw MCPAuthServerError if called in resource server mode', () => {
+    const auth = new MCPAuth({ protectedResources: validResourceConfig });
+    const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
+      cause: '`delegatedRouter` is not available in `resource server` mode.',
+    });
+    expect(() => auth.delegatedRouter()).toThrow(expectedError);
   });
 
-  it('should call `delegatedRouter` method of the `ResourceServerHandler` in resource server mode', () => {
+  it('should call `createMetadataRouter` method of the `AuthorizationServerHandler` in authorization server mode', () => {
     const delegatedRouterSpy = vi
-      .spyOn(resourceServerHandler.ResourceServerHandler.prototype, 'delegatedRouter')
+      .spyOn(
+        authorizationServerHandler.AuthorizationServerHandler.prototype,
+        'createMetadataRouter'
+      )
       .mockImplementationOnce(vi.fn());
-    const auth = new MCPAuth({ protectedResource: validResourceConfig });
+    const auth = new MCPAuth({ server: validServerConfig });
     auth.delegatedRouter();
     expect(delegatedRouterSpy).toHaveBeenCalled();
     delegatedRouterSpy.mockRestore();
@@ -136,27 +137,19 @@ describe('MCPAuth class (delegatedRouter)', () => {
 });
 
 describe('MCPAuth class (protectedResourceMetadataRouter)', () => {
-  it('should call `protectedResourceMetadataRouter` method of the `AuthorizationServerHandler` in authorization server mode', () => {
-    const protectedResourceMetadataRouterSpy = vi
-      .spyOn(
-        authorizationServerHandler.AuthorizationServerHandler.prototype,
-        'protectedResourceMetadataRouter'
-      )
-      .mockImplementationOnce(vi.fn());
+  it('should throw MCPAuthServerError if called in authorization server mode', () => {
     const auth = new MCPAuth({ server: validServerConfig });
-    auth.protectedResourceMetadataRouter();
-    expect(protectedResourceMetadataRouterSpy).toHaveBeenCalled();
-    protectedResourceMetadataRouterSpy.mockRestore();
+    const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
+      cause: '`protectedResourceMetadataRouter` is not available in `authorization server` mode.',
+    });
+    expect(() => auth.protectedResourceMetadataRouter()).toThrow(expectedError);
   });
 
-  it('should call `protectedResourceMetadataRouter` method of the `ResourceServerHandler` in resource server mode', () => {
+  it('should call `createMetadataRouter` method of the `ResourceServerHandler` in resource server mode', () => {
     const protectedResourceMetadataRouterSpy = vi
-      .spyOn(
-        resourceServerHandler.ResourceServerHandler.prototype,
-        'protectedResourceMetadataRouter'
-      )
+      .spyOn(resourceServerHandler.ResourceServerHandler.prototype, 'createMetadataRouter')
       .mockImplementationOnce(vi.fn());
-    const auth = new MCPAuth({ protectedResource: validResourceConfig });
+    const auth = new MCPAuth({ protectedResources: validResourceConfig });
     auth.protectedResourceMetadataRouter();
     expect(protectedResourceMetadataRouterSpy).toHaveBeenCalled();
     protectedResourceMetadataRouterSpy.mockRestore();

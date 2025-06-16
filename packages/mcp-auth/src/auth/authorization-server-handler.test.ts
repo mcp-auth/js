@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MCPAuthAuthServerError } from '../errors.js';
 import { type AuthServerConfig } from '../types/auth-server.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
@@ -55,10 +54,10 @@ describe('AuthorizationServerHandler', () => {
     });
   });
 
-  describe('delegatedRouter', () => {
-    it('should create a delegated router', () => {
+  describe('createMetadataRouter', () => {
+    it('should create a authorization server metadata router', () => {
       const handler = new AuthorizationServerHandler(mockConfig);
-      const router = handler.delegatedRouter();
+      const router = handler.createMetadataRouter();
 
       expect(router.stack).toContainEqual(
         expect.objectContaining({
@@ -69,16 +68,6 @@ describe('AuthorizationServerHandler', () => {
           }),
         })
       );
-    });
-  });
-
-  describe('protectedResourceMetadataRouter', () => {
-    it('should throw MCPAuthAuthServerError', () => {
-      const handler = new AuthorizationServerHandler(mockConfig);
-      const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
-        cause: '`protectedResourceMetadataRouter` is not available in `authorization server` mode.',
-      });
-      expect(() => handler.protectedResourceMetadataRouter()).toThrow(expectedError);
     });
   });
 

@@ -1,3 +1,4 @@
+import { type Optional } from '@silverhand/essentials';
 import { type Router } from 'express';
 
 import type { TokenVerifier } from './token-verifier.js';
@@ -6,21 +7,15 @@ import type { TokenVerifier } from './token-verifier.js';
  * Defines the contract for a handler that manages the logic for a specific MCPAuth configuration.
  * This allows for clean separation of logic between legacy and modern configurations.
  */
-export type MCPAuthHandler = {
+export abstract class MCPAuthHandler {
   /**
-   * Returns a router for serving the legacy OAuth 2.0 Authorization Server Metadata.
-   * @throws {MCPAuthAuthServerError} If not supported in the current configuration.
-   * @deprecated Use `protectedResourceMetadataRouter` instead.
+   * Returns a router for serving either the legacy OAuth 2.0 Authorization Server Metadata or
+   * the OAuth 2.0 Protected Resource Metadata, depending on the configuration.
    */
-  delegatedRouter(): Router;
-  /**
-   * Returns a router for serving the OAuth 2.0 Protected Resource Metadata.
-   * @throws {MCPAuthAuthServerError} If not supported in the current configuration.
-   */
-  protectedResourceMetadataRouter(): Router;
+  abstract createMetadataRouter(): Router;
   /**
    * Resolves the appropriate TokenVerifier based on the provided options.
-   * @param options - Options containing the resource identifier for verifier lookup.
+   * @param options - Optional parameters, usage depends on implementation.
    */
-  getTokenVerifier(options: { resource?: string }): TokenVerifier;
-};
+  abstract getTokenVerifier(options: Optional<{ resource?: string }>): TokenVerifier;
+}

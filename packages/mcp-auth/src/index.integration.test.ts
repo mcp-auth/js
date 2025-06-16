@@ -193,7 +193,7 @@ describe('MCP Server as resource server', () => {
       expect(
         () =>
           new MCPAuth({
-            protectedResource: [resourceServerConfig1, resourceServerConfig1],
+            protectedResources: [resourceServerConfig1, resourceServerConfig1],
           })
       ).toThrow('The server configuration does not match the MCP specification.');
     });
@@ -202,7 +202,7 @@ describe('MCP Server as resource server', () => {
       expect(
         () =>
           new MCPAuth({
-            protectedResource: {
+            protectedResources: {
               metadata: {
                 resource: resource1,
                 authorizationServers: [authServer1, authServer1],
@@ -216,7 +216,7 @@ describe('MCP Server as resource server', () => {
   describe('MCPAuth class (protectedResourceMetadataRouter)', () => {
     it('should serve metadata for a single resource', async () => {
       const auth = new MCPAuth({
-        protectedResource: resourceServerConfig1,
+        protectedResources: resourceServerConfig1,
       });
       const app = express();
       app.use(auth.protectedResourceMetadataRouter());
@@ -234,7 +234,7 @@ describe('MCP Server as resource server', () => {
 
     it('should serve metadata for multiple resources', async () => {
       const auth = new MCPAuth({
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       });
       const app = express();
       app.use(auth.protectedResourceMetadataRouter());
@@ -294,7 +294,7 @@ describe('MCP Server as resource server', () => {
 
     it('should throw an error if resource is not specified in bearerAuth config', () => {
       const auth = new MCPAuth({
-        protectedResource: resourceServerConfig1,
+        protectedResources: resourceServerConfig1,
       });
       expect(() => auth.bearerAuth('jwt')).toThrow(
         'The server configuration does not match the MCP specification.'
@@ -303,7 +303,7 @@ describe('MCP Server as resource server', () => {
 
     it('should throw an error for a non-configured resource', () => {
       const auth = new MCPAuth({
-        protectedResource: resourceServerConfig1,
+        protectedResources: resourceServerConfig1,
       });
       expect(() => auth.bearerAuth('jwt', { resource: 'https://api.example.com/unknown' })).toThrow(
         'The server configuration does not match the MCP specification.'
@@ -312,7 +312,7 @@ describe('MCP Server as resource server', () => {
 
     it('should return 200 for resource 1 with a valid token', async () => {
       const auth = new MCPAuth({
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       });
       const app = createApp(auth);
       const { token, jwks } = await generateToken({
@@ -336,7 +336,7 @@ describe('MCP Server as resource server', () => {
 
     it('should return 403 for resource 1 when token is missing scopes', async () => {
       const auth = new MCPAuth({
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       });
       const app = createApp(auth);
       const { token, jwks } = await generateToken({
@@ -355,7 +355,7 @@ describe('MCP Server as resource server', () => {
 
     it('should return 401 for resource 1 when token is for resource 2', async () => {
       const auth = new MCPAuth({
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       });
       const app = createApp(auth);
       // Token from auth server 2 for resource 2
@@ -377,7 +377,7 @@ describe('MCP Server as resource server', () => {
 
     it('should return 200 for resource 2 with a valid token', async () => {
       const auth = new MCPAuth({
-        protectedResource: [resourceServerConfig1, resourceServerConfig2],
+        protectedResources: [resourceServerConfig1, resourceServerConfig2],
       });
       const app = createApp(auth);
       const { token, jwks } = await generateToken({

@@ -58,13 +58,16 @@ export type VerifyAccessTokenMode = 'jwt';
  * const authServerConfig = await fetchServerConfig('https://auth.logto.io/oidc', { type: 'oidc' });
  *
  * const mcpAuth = new MCPAuth({
- *   protectedResource: {
- *     metadata: {
- *       resource: resourceIdentifier,
- *       authorizationServers: [authServerConfig],
- *       scopesSupported: ['read:notes', 'write:notes'],
+ *   // `protectedResources` can be a single configuration object or an array of them.
+ *   protectedResources: [
+ *     {
+ *       metadata: {
+ *         resource: resourceIdentifier,
+ *         authorizationServers: [authServerConfig],
+ *         scopesSupported: ['read:notes', 'write:notes'],
+ *       },
  *     },
- *   },
+ *   ],
  * });
  *
  * // Mount the router to handle Protected Resource Metadata
@@ -132,7 +135,7 @@ export class MCPAuth {
       return;
     }
 
-    if (!('protectedResource' in config)) {
+    if (!('protectedResources' in config)) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
         cause: 'No authorization server or protected resource metadata is provided.',
       });
@@ -159,9 +162,15 @@ export class MCPAuth {
    *
    * @returns A router that serves the OAuth 2.0 Authorization Server Metadata endpoint with the
    * metadata provided to the instance.
+   * @throws {MCPAuthAuthServerError} If called in `resource server` mode.
    */
   delegatedRouter(): Router {
-    return this.authHandler.delegatedRouter();
+    if (this.authHandler instanceof ResourceServerHandler) {
+      throw new MCPAuthAuthServerError('invalid_server_config', {
+        cause: '`delegatedRouter` is not available in `resource server` mode.',
+      });
+    }
+    return this.authHandler.createMetadataRouter();
   }
 
   /**
@@ -171,12 +180,15 @@ export class MCPAuth {
    * This router automatically creates the correct `.well-known` endpoints for each
    * resource identifier provided in your configuration.
    *
+   * @returns A router that serves the OAuth 2.0 Protected Resource Metadata endpoint.
+   * @throws {MCPAuthAuthServerError} If called in `authorization server` mode.
+   *
    * @example
    * ```ts
    * import express from 'express';
    * import { MCPAuth } from 'mcp-auth';
    *
-   * // Assuming mcpAuth is initialized with one or more `protectedResource` configs
+   * // Assuming mcpAuth is initialized with one or more `protectedResources` configs
    * const mcpAuth: MCPAuth;
    * const app = express();
    *
@@ -186,7 +198,12 @@ export class MCPAuth {
    * ```
    */
   protectedResourceMetadataRouter(): Router {
-    return this.authHandler.protectedResourceMetadataRouter();
+    if (this.authHandler instanceof AuthorizationServerHandler) {
+      throw new MCPAuthAuthServerError('invalid_server_config', {
+        cause: '`protectedResourceMetadataRouter` is not available in `authorization server` mode.',
+      });
+    }
+    return this.authHandler.createMetadataRouter();
   }
 
   /**
@@ -258,12 +275,12 @@ export class MCPAuth {
   ): RequestHandler {
     /**
      * The `resource` property in the config is crucial for selecting the correct TokenVerifier
-     * in `protectedResource` mode. This check ensures it's not forgotten.
+     * in `protectedResources` mode. This check ensures it's not forgotten.
      */
-    if ('protectedResource' in this.config && !config.resource) {
+    if ('protectedResources' in this.config && !config.resource) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
         cause:
-          'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResource` configuration.',
+          'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResources` configuration.',
       });
     }
 

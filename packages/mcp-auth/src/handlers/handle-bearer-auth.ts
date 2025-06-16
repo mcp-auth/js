@@ -181,7 +181,7 @@ export type BearerAuthConfig = {
   /**
    * The identifier of the protected resource. When provided, the handler will use the
    * authorization servers configured for this resource to validate the received token.
-   * It's required when using the handler with a `protectedResource` configuration.
+   * It's required when using the handler with a `protectedResources` configuration.
    */
   resource?: string;
   /**
