@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MCPAuthAuthServerError } from '../errors.js';
 import { type AuthServerConfig } from '../types/auth-server.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
@@ -50,7 +49,7 @@ describe('AuthorizationServerHandler', () => {
       const consoleWarnSpy = vi.spyOn(console, 'warn');
       const _ = new AuthorizationServerHandler(mockConfig);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'the authorization server mode is deprecated. Please use resource server mode instead.'
+        'The authorization server mode is deprecated. Please use resource server mode instead.'
       );
     });
   });
@@ -75,17 +74,8 @@ describe('AuthorizationServerHandler', () => {
   describe('getTokenVerifier', () => {
     it('should return the TokenVerifier instance', () => {
       const handler = new AuthorizationServerHandler(mockConfig);
-      const tokenVerifier = handler.getTokenVerifier();
+      const tokenVerifier = handler.getTokenVerifier({ resource: 'dummy' });
       expect(tokenVerifier).toBeInstanceOf(TokenVerifier);
-    });
-
-    it('should throw an error if a resource is provided', () => {
-      const handler = new AuthorizationServerHandler(mockConfig);
-      const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
-        cause:
-          'The authorization server mode does not support resource-specific token verification.',
-      });
-      expect(() => handler.getTokenVerifier({ resource: 'test' })).toThrow(expectedError);
     });
   });
 });

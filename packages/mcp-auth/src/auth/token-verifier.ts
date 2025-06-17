@@ -31,7 +31,7 @@ export type VerifyJwtConfig = {
 };
 
 export type GetTokenVerifierOptions = {
-  resource?: string;
+  resource: string;
 };
 
 /**

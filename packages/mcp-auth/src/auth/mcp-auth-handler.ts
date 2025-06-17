@@ -16,5 +16,5 @@ export abstract class MCPAuthHandler {
    * Resolves the appropriate TokenVerifier based on the provided options.
    * @param options - Options containing the resource identifier for verifier lookup.
    */
-  abstract getTokenVerifier(options?: GetTokenVerifierOptions): TokenVerifier;
+  abstract getTokenVerifier(options: GetTokenVerifierOptions): TokenVerifier;
 }

@@ -275,7 +275,7 @@ export class MCPAuth {
   ): RequestHandler {
     /**
      * The `resource` property in the config is crucial for selecting the correct TokenVerifier
-     * in `protectedResources` mode. This check ensures it's not forgotten.
+     * in resource server mode. This check ensures it's not forgotten.
      */
     if ('protectedResources' in this.config && !config.resource) {
       throw new MCPAuthAuthServerError('invalid_server_config', {
@@ -284,7 +284,12 @@ export class MCPAuth {
       });
     }
 
-    const tokenVerifier = this.authHandler.getTokenVerifier({ resource: config.resource });
+    /**
+     * In the deprecated `authorization server` mode, `getTokenVerifier` does not utilize the
+     * `resource` parameter. Passing an empty string `''` is a straightforward approach that
+     * avoids over-engineering a solution for a legacy path.
+     */
+    const tokenVerifier = this.authHandler.getTokenVerifier({ resource: config.resource ?? '' });
 
     const getVerifyFunction = () => {
       if (typeof modeOrVerify === 'function') {
