@@ -301,7 +301,7 @@ export class MCPAuth {
 
     return handleBearerAuth({
       verifyAccessToken: getVerifyFunction(),
-      issuer: tokenVerifier.validateJwtIssuer,
+      issuer: tokenVerifier.getJwtIssuerValidator(),
       ...config,
     });
   }

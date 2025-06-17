@@ -2,6 +2,7 @@ import { SignJWT } from 'jose';
 import * as jose from 'jose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MCPAuthBearerAuthError } from '../errors.js';
 import { type AuthServerConfig } from '../types/auth-server.js';
 import { createVerifyJwt } from '../utils/create-verify-jwt.js';
 
@@ -136,21 +137,25 @@ describe('TokenVerifier', () => {
     });
   });
 
-  describe('validateJwtIssuer', () => {
+  describe('getJwtIssuerValidator', () => {
     it('should not throw an error for a trusted issuer', () => {
       const tokenVerifier = new TokenVerifier(authServers);
+      const validator = tokenVerifier.getJwtIssuerValidator();
       expect(() => {
-        tokenVerifier.validateJwtIssuer('https://trusted.issuer.com');
+        validator('https://trusted.issuer.com');
       }).not.toThrow();
     });
 
     it('should throw an MCPAuthBearerAuthError for an untrusted issuer', () => {
       const tokenVerifier = new TokenVerifier(authServers);
+      const validator = tokenVerifier.getJwtIssuerValidator();
+      const expectedError = new MCPAuthBearerAuthError('invalid_issuer', {
+        expected: authServers.map(({ metadata }) => metadata.issuer).join(', '),
+        actual: 'https://untrusted.issuer.com',
+      });
       expect(() => {
-        tokenVerifier.validateJwtIssuer('https://untrusted.issuer.com');
-      }).toThrowErrorMatchingInlineSnapshot(
-        '[MCPAuthBearerAuthError: The token issuer does not match the expected issuer.]'
-      );
+        validator('https://untrusted.issuer.com');
+      }).toThrow(expectedError);
     });
   });
 });

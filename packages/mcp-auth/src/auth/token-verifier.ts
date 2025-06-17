@@ -7,6 +7,10 @@ import {
 } from 'jose';
 
 import { MCPAuthAuthServerError, MCPAuthBearerAuthError } from '../errors.js';
+import {
+  type ValidateIssuerFunction,
+  type VerifyAccessTokenFunction,
+} from '../handlers/handle-bearer-auth.js';
 import { type AuthServerConfig } from '../types/auth-server.js';
 import { createVerifyJwt } from '../utils/create-verify-jwt.js';
 
@@ -24,6 +28,10 @@ export type VerifyJwtConfig = {
    * @see {@link RemoteJWKSetOptions}
    */
   remoteJwkSet?: RemoteJWKSetOptions;
+};
+
+export type GetTokenVerifierOptions = {
+  resource?: string;
 };
 
 /**
@@ -49,16 +57,15 @@ export class TokenVerifier {
    * @returns A function that takes a token string and returns a promise resolving with the
    * verified claims.
    */
-  createVerifyJwtFunction =
-    ({ jwtVerify, remoteJwkSet }: VerifyJwtConfig) =>
-    async (token: string) => {
+  createVerifyJwtFunction({ jwtVerify, remoteJwkSet }: VerifyJwtConfig): VerifyAccessTokenFunction {
+    return async (token: string) => {
       const unverifiedIssuer = this.getUnverifiedJwtIssuer(token);
       /**
        * This is a pre-check step before the actual verification of the JWT.
        * It validates the issuer against this verifier's trusted list *before* attempting
        * to fetch the JWKS, ensuring we only interact with expected servers.
        */
-      this.validateJwtIssuer(unverifiedIssuer);
+      this.getJwtIssuerValidator()(unverifiedIssuer);
 
       const { jwksUri } = this.getAuthServerMetadataByIssuer(unverifiedIssuer) ?? {};
 
@@ -70,22 +77,25 @@ export class TokenVerifier {
 
       return createVerifyJwt(createRemoteJWKSet(new URL(jwksUri), remoteJwkSet), jwtVerify)(token);
     };
+  }
 
   /**
-   * Validates that a given issuer is in the list of trusted authorization servers for this resource.
-   * This method provides precise error messages, listing all expected issuers on failure.
-   * @param issuer The issuer string to validate.
+   * A factory method that creates an issuer validation function tailored to this verifier's policies.
+   * The returned function will validate a given issuer against the list of trusted authorization
+   * servers, providing precise error messages on failure.
    */
-  validateJwtIssuer = (issuer: string) => {
-    const authServer = this.getAuthServerMetadataByIssuer(issuer);
+  getJwtIssuerValidator(): ValidateIssuerFunction {
+    return (issuer: string) => {
+      const authServer = this.getAuthServerMetadataByIssuer(issuer);
 
-    if (!authServer) {
-      throw new MCPAuthBearerAuthError('invalid_issuer', {
-        expected: this.authServers.map(({ metadata }) => metadata.issuer).join(', '),
-        actual: issuer,
-      });
-    }
-  };
+      if (!authServer) {
+        throw new MCPAuthBearerAuthError('invalid_issuer', {
+          expected: this.authServers.map(({ metadata }) => metadata.issuer).join(', '),
+          actual: issuer,
+        });
+      }
+    };
+  }
 
   /**
    * Decodes a JWT to extract its issuer without performing signature verification.

@@ -1,7 +1,6 @@
-import { type Optional } from '@silverhand/essentials';
 import { type Router } from 'express';
 
-import type { TokenVerifier } from './token-verifier.js';
+import type { GetTokenVerifierOptions, TokenVerifier } from './token-verifier.js';
 
 /**
  * Defines the contract for a handler that manages the logic for a specific MCPAuth configuration.
@@ -15,7 +14,7 @@ export abstract class MCPAuthHandler {
   abstract createMetadataRouter(): Router;
   /**
    * Resolves the appropriate TokenVerifier based on the provided options.
-   * @param options - Optional parameters, usage depends on implementation.
+   * @param options - Options containing the resource identifier for verifier lookup.
    */
-  abstract getTokenVerifier(options: Optional<{ resource?: string }>): TokenVerifier;
+  abstract getTokenVerifier(options?: GetTokenVerifierOptions): TokenVerifier;
 }

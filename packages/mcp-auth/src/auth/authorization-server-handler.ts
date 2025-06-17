@@ -1,11 +1,12 @@
 import { type Router } from 'express';
 
+import { MCPAuthAuthServerError } from '../errors.js';
 import { createDelegatedRouter } from '../routers/create-delegated-router.js';
 import { type AuthServerConfig } from '../types/auth-server.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
 import { MCPAuthHandler } from './mcp-auth-handler.js';
-import { TokenVerifier } from './token-verifier.js';
+import { type GetTokenVerifierOptions, TokenVerifier } from './token-verifier.js';
 
 /**
  * Configuration for the legacy, MCP server as authorization server mode.
@@ -41,7 +42,14 @@ export class AuthorizationServerHandler extends MCPAuthHandler {
     return createDelegatedRouter(this.config.server.metadata);
   }
 
-  getTokenVerifier(): TokenVerifier {
+  getTokenVerifier(options?: GetTokenVerifierOptions): TokenVerifier {
+    if (options?.resource) {
+      throw new MCPAuthAuthServerError('invalid_server_config', {
+        cause:
+          'The authorization server mode does not support resource-specific token verification.',
+      });
+    }
+
     return this.tokenVerifier;
   }
 }

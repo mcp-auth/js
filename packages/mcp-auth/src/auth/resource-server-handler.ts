@@ -7,7 +7,7 @@ import { transpileResourceMetadata } from '../utils/transpile-resource-metadata.
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
 import { MCPAuthHandler } from './mcp-auth-handler.js';
-import { TokenVerifier } from './token-verifier.js';
+import { type GetTokenVerifierOptions, TokenVerifier } from './token-verifier.js';
 
 /**
  * Configuration for the MCP server as resource server mode.
@@ -44,8 +44,8 @@ export class ResourceServerHandler extends MCPAuthHandler {
     );
   }
 
-  getTokenVerifier(options: { resource?: string }): TokenVerifier {
-    const { resource } = options;
+  getTokenVerifier(options?: GetTokenVerifierOptions): TokenVerifier {
+    const { resource } = options ?? {};
 
     if (!resource) {
       throw new MCPAuthAuthServerError('invalid_server_config', {

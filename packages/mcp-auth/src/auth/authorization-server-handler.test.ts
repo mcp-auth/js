@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { MCPAuthAuthServerError } from '../errors.js';
 import { type AuthServerConfig } from '../types/auth-server.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
@@ -76,6 +77,15 @@ describe('AuthorizationServerHandler', () => {
       const handler = new AuthorizationServerHandler(mockConfig);
       const tokenVerifier = handler.getTokenVerifier();
       expect(tokenVerifier).toBeInstanceOf(TokenVerifier);
+    });
+
+    it('should throw an error if a resource is provided', () => {
+      const handler = new AuthorizationServerHandler(mockConfig);
+      const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
+        cause:
+          'The authorization server mode does not support resource-specific token verification.',
+      });
+      expect(() => handler.getTokenVerifier({ resource: 'test' })).toThrow(expectedError);
     });
   });
 });
