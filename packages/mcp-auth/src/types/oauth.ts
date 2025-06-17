@@ -134,3 +134,107 @@ export const defaultValues: Readonly<Partial<CamelCaseAuthorizationServerMetadat
     responseModesSupported: ['query', 'fragment'],
   }
 );
+
+/**
+ * Zod schema for OAuth 2.0 Protected Resource Metadata. This schema is
+ * not intended to be used directly for validation, but rather as a reference for the actual
+ * zod schemata that will be used in the application.
+ */
+const protectedResourceMetadataObject = Object.freeze({
+  /**
+   * The protected resource's resource identifier.
+   */
+  resource: z.string(),
+  /**
+   * List of OAuth authorization server issuer identifiers that can be used with this protected resource.
+   */
+  authorization_servers: z.array(z.string()).optional(),
+  /**
+   * URL of the protected resource's JSON Web Key (JWK) Set document. This document contains the public keys
+   * that can be used to verify digital signatures of responses or data returned by this protected resource.
+   * This differs from the authorization server's jwks_uri which is used for token validation. When the protected
+   * resource signs its responses, clients can fetch these public keys to verify the authenticity and integrity
+   * of the received data.
+   */
+  jwks_uri: z.string().optional(),
+  /**
+   * List of scope values used in authorization requests to access this protected resource.
+   */
+  scopes_supported: z.array(z.string()).optional(),
+  /**
+   * Supported methods for sending OAuth 2.0 bearer tokens. Values: ["header", "body", "query"].
+   */
+  bearer_methods_supported: z.array(z.string()).optional(),
+  /**
+   * JWS signing algorithms supported by the protected resource for signing resource responses.
+   */
+  resource_signing_alg_values_supported: z.array(z.string()).optional(),
+  /**
+   * Human-readable name of the protected resource for display to end users.
+   */
+  resource_name: z.string().optional(),
+  /**
+   * URL containing developer documentation for using the protected resource.
+   */
+  resource_documentation: z.string().optional(),
+  /**
+   * URL containing information about the protected resource's data usage requirements.
+   */
+  resource_policy_uri: z.string().optional(),
+  /**
+   * URL containing the protected resource's terms of service.
+   */
+  resource_tos_uri: z.string().optional(),
+  /**
+   * Whether the protected resource supports mutual-TLS client certificate-bound access tokens.
+   */
+  tls_client_certificate_bound_access_tokens: z.boolean().optional(),
+  /**
+   * Authorization details type values supported when using the authorization_details request parameter.
+   */
+  authorization_details_types_supported: z.array(z.string()).optional(),
+  /**
+   * JWS algorithms supported for validating DPoP proof JWTs.
+   */
+  dpop_signing_alg_values_supported: z.array(z.string()).optional(),
+  /**
+   * Whether the protected resource always requires DPoP-bound access tokens.
+   */
+  dpop_bound_access_tokens_required: z.boolean().optional(),
+  /**
+   * A signed JWT containing metadata parameters as claims. The JWT must be signed using JWS and include
+   * an 'iss' claim. This field provides a way to cryptographically verify the authenticity of the metadata
+   * itself. The signature can be verified using the public keys available at the `jwks_uri` endpoint.
+   * When present, the values in this signed metadata take precedence over the corresponding plain
+   * JSON values in this metadata document. This helps prevent tampering with the resource metadata.
+   */
+  signed_metadata: z.string().optional(),
+});
+
+/**
+ * Zod schema for OAuth 2.0 Protected Resource Metadata.
+ */
+export const protectedResourceMetadataSchema = z.object(protectedResourceMetadataObject);
+
+/**
+ * Schema for OAuth 2.0 Protected Resource Metadata.
+ */
+export type ProtectedResourceMetadata = z.infer<typeof protectedResourceMetadataSchema>;
+
+/**
+ * The camelCase version of the OAuth 2.0 Protected Resource Metadata Zod schema.
+ *
+ * @see {@link protectedResourceMetadataSchema} for the original schema and field information.
+ */
+export const camelCaseProtectedResourceMetadataSchema = z.object(
+  camelcaseKeys(protectedResourceMetadataObject)
+);
+
+/**
+ * The camelCase version of the OAuth 2.0 Protected Resource Metadata type.
+ *
+ * @see {@link ProtectedResourceMetadata} for the original type and field information.
+ */
+export type CamelCaseProtectedResourceMetadata = z.infer<
+  typeof camelCaseProtectedResourceMetadataSchema
+>;

@@ -122,8 +122,10 @@ if (!MCP_AUTH_ISSUER) {
   throw new Error('MCP_AUTH_ISSUER environment variable is required');
 }
 
+const authServerConfig = await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' });
+
 const mcpAuth = new MCPAuth({
-  server: await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' }),
+  server: authServerConfig,
 });
 
 const PORT = 3001;

@@ -3,7 +3,7 @@ import { type IncomingHttpHeaders } from 'node:http';
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 // eslint-disable-next-line unused-imports/no-unused-imports
 import { type DEFAULT_REQUEST_TIMEOUT_MSEC } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import { condObject, trySafe } from '@silverhand/essentials';
+import { cond, condObject, trySafe } from '@silverhand/essentials';
 import { type Response, type RequestHandler } from 'express';
 import snakecaseKeys from 'snakecase-keys';
 
@@ -14,6 +14,8 @@ import {
   MCPAuthTokenVerificationError,
 } from '../errors.js';
 import { type MaybePromise } from '../types/promise.js';
+import { BearerWWWAuthenticateHeader } from '../utils/bearer-www-authenticate-header.js';
+import { createResourceMetadataEndpoint } from '../utils/create-resource-metadata-endpoint.js';
 
 declare module '@modelcontextprotocol/sdk/server/auth/types.js' {
   /**
@@ -121,6 +123,20 @@ declare module 'express-serve-static-core' {
  */
 export type VerifyAccessTokenFunction = (token: string) => MaybePromise<AuthInfo>;
 
+/**
+ * Function type for validating the issuer of the access token.
+ *
+ * This function should throw an {@link MCPAuthBearerAuthError} with code 'invalid_issuer' if the issuer
+ * is not valid. The issuer should be validated against:
+ *
+ * 1. The authorization servers configured in MCP-Auth's auth server metadata
+ * 2. The authorization servers listed in the protected resource's metadata
+ *
+ * @param issuer The issuer of the access token.
+ * @throws {MCPAuthBearerAuthError} When the issuer is not recognized or invalid.
+ */
+export type ValidateIssuerFunction = (tokenIssuer: string) => void;
+
 export type BearerAuthConfig = {
   /**
    * Function type for verifying an access token.
@@ -132,10 +148,16 @@ export type BearerAuthConfig = {
    */
   verifyAccessToken: VerifyAccessTokenFunction;
   /**
-   * The expected issuer of the access token (`iss` claim). This should be the URL of the
-   * authorization server that issued the token.
+   * A string representing a valid issuer, or a function for validating the issuer of the access token.
+   *
+   * If a string is provided, it will be used as the expected issuer value for direct comparison.
+   *
+   * If a function is provided, it should validate the issuer according to the rules in
+   * {@link ValidateIssuerFunction}.
+   *
+   * @see {@link ValidateIssuerFunction} for more details about the validation function.
    */
-  issuer: string;
+  issuer: string | ValidateIssuerFunction;
   /**
    * The expected audience of the access token (`aud` claim). This is typically the resource server
    * (API) that the token is intended for. If not provided, the audience check will be skipped.
@@ -156,6 +178,12 @@ export type BearerAuthConfig = {
    * if available.
    */
   requiredScopes?: string[];
+  /**
+   * The identifier of the protected resource. When provided, the handler will use the
+   * authorization servers configured for this resource to validate the received token.
+   * It's required when using the handler with a `protectedResources` configuration.
+   */
+  resource?: string;
   /**
    * Whether to show detailed error information in the response. This is useful for debugging
    * during development, but should be disabled in production to avoid leaking sensitive
@@ -186,22 +214,42 @@ const getBearerTokenFromHeaders = (headers: IncomingHttpHeaders): string => {
   return token;
 };
 
-const handleError = (error: unknown, response: Response, showErrorDetails = false): void => {
+const handleError = (
+  error: unknown,
+  response: Response,
+  resourceMetadataEndpoint: string | undefined,
+  showErrorDetails = false
+): void => {
+  const wwwAuthenticateHeader = new BearerWWWAuthenticateHeader();
+
   if (error instanceof MCPAuthTokenVerificationError || error instanceof MCPAuthBearerAuthError) {
-    response.set(
-      'WWW-Authenticate',
-      `Bearer error="${error.code}", error_description="${error.message}"`
-    );
+    wwwAuthenticateHeader.setParameterIfValueExists('error', error.code);
+    wwwAuthenticateHeader.setParameterIfValueExists('error_description', error.message);
   }
 
   if (error instanceof MCPAuthTokenVerificationError) {
-    response.status(401).json(snakecaseKeys(error.toJson(showErrorDetails)));
+    wwwAuthenticateHeader.setParameterIfValueExists('resource_metadata', resourceMetadataEndpoint);
+
+    response
+      .set(wwwAuthenticateHeader.headerName, wwwAuthenticateHeader.toString())
+      .status(401)
+      .json(snakecaseKeys(error.toJson(showErrorDetails)));
     return;
   }
 
   if (error instanceof MCPAuthBearerAuthError) {
+    const statusCode = error.code === 'missing_required_scopes' ? 403 : 401;
+
+    if (statusCode === 401) {
+      wwwAuthenticateHeader.setParameterIfValueExists(
+        'resource_metadata',
+        resourceMetadataEndpoint
+      );
+    }
+
     response
-      .status(error.code === 'missing_required_scopes' ? 403 : 401)
+      .set(wwwAuthenticateHeader.headerName, wwwAuthenticateHeader.toString())
+      .status(statusCode)
       .json(snakecaseKeys(error.toJson(showErrorDetails)));
     return;
   }
@@ -247,6 +295,7 @@ export const handleBearerAuth = ({
   issuer,
   requiredScopes,
   audience,
+  resource,
   showErrorDetails,
 }: BearerAuthConfig): RequestHandler => {
   if (typeof verifyAccessToken !== 'function') {
@@ -255,7 +304,13 @@ export const handleBearerAuth = ({
     );
   }
 
-  if (!trySafe(() => new URL(issuer))) {
+  if (typeof issuer !== 'function' && typeof issuer !== 'string') {
+    throw new TypeError(
+      '`issuer` must be either a string or a function that validates the token issuer.'
+    );
+  }
+
+  if (typeof issuer === 'string' && !trySafe(() => new URL(issuer))) {
     throw new TypeError(`\`issuer\` must be a valid URL.`);
   }
 
@@ -264,11 +319,19 @@ export const handleBearerAuth = ({
       const token = getBearerTokenFromHeaders(request.headers);
       const authInfo = await verifyAccessToken(token);
 
-      if (authInfo.issuer !== issuer) {
-        throw new MCPAuthBearerAuthError('invalid_issuer', {
-          expected: issuer,
-          actual: authInfo.issuer,
-        });
+      if (typeof issuer === 'function') {
+        issuer(authInfo.issuer);
+      } else {
+        /**
+         * When issuer is provided as a string, directly compare it with the token's issuer value
+         */
+        // eslint-disable-next-line no-lonely-if
+        if (authInfo.issuer !== issuer) {
+          throw new MCPAuthBearerAuthError('invalid_issuer', {
+            expected: issuer,
+            actual: authInfo.issuer,
+          });
+        }
       }
 
       if (
@@ -303,7 +366,12 @@ export const handleBearerAuth = ({
       next();
     } catch (error) {
       console.error('Error during Bearer auth:', error);
-      handleError(error, response, showErrorDetails);
+      handleError(
+        error,
+        response,
+        cond(resource && createResourceMetadataEndpoint(resource).toString()),
+        showErrorDetails
+      );
     }
   };
 
