@@ -37,7 +37,12 @@ const authorizationServerMetadataObject = Object.freeze({
    * [[RFC7591](https://www.rfc-editor.org/rfc/rfc7591)].
    */
   registration_endpoint: z.string().optional(),
-  scope_supported: z.array(z.string()).optional(),
+  /**
+   * JSON array containing a list of the OAuth 2.0 `scope` values that this authorization server
+   * supports.
+   * [[RFC8414](https://datatracker.ietf.org/doc/html/rfc8414#section-2)]
+   */
+  scopes_supported: z.array(z.string()).optional(),
   /**
    * JSON array containing a list of the OAuth 2.0 `response_type` values that this authorization
    * server supports. The array values used are the same as those used with the `response_types`
