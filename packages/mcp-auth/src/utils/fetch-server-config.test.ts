@@ -89,6 +89,7 @@ describe('fetchServerConfig (OAuth)', () => {
     authorization_endpoint: 'https://example.com/oauth/authorize',
     token_endpoint: 'https://example.com/oauth/token',
     response_types_supported: ['code'],
+    scopes_supported: ['scope1', 'scope2', 'scope3'],
   });
 
   it('should fetch server config using the well-known URL for OAuth', async () => {
@@ -103,6 +104,7 @@ describe('fetchServerConfig (OAuth)', () => {
         authorizationEndpoint: 'https://example.com/oauth/authorize',
         tokenEndpoint: 'https://example.com/oauth/token',
         responseTypesSupported: ['code'],
+        scopesSupported: ['scope1', 'scope2', 'scope3'],
       },
     });
     expect(wellKnown.isDone()).toBe(true);
@@ -120,6 +122,7 @@ describe('fetchServerConfig (OAuth)', () => {
         authorizationEndpoint: 'https://example.com/oauth/authorize',
         tokenEndpoint: 'https://example.com/oauth/token',
         responseTypesSupported: ['code'],
+        scopesSupported: ['scope1', 'scope2', 'scope3'],
       },
     });
     expect(wellKnown.isDone()).toBe(true);
@@ -135,6 +138,7 @@ describe('fetchServerConfig (OIDC)', () => {
         authorization_endpoint: 'https://example.com/authorize',
         token_endpoint: 'https://example.com/token',
         response_types_supported: ['code'],
+        scopes_supported: ['openid', 'profile', 'email'],
       });
     const config = await fetchServerConfig('https://example.com', { type: 'oidc' });
     expect(config).toEqual({
@@ -144,6 +148,7 @@ describe('fetchServerConfig (OIDC)', () => {
         authorizationEndpoint: 'https://example.com/authorize',
         tokenEndpoint: 'https://example.com/token',
         responseTypesSupported: ['code'],
+        scopesSupported: ['openid', 'profile', 'email'],
       },
     });
     expect(wellKnown.isDone()).toBe(true);
