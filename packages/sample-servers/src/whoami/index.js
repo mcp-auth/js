@@ -35,8 +35,10 @@ if (!MCP_AUTH_ISSUER) {
   throw new Error('MCP_AUTH_ISSUER environment variable is required');
 }
 
+const authServerConfig = await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' });
+
 const mcpAuth = new MCPAuth({
-  server: await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' }),
+  server: authServerConfig,
 });
 
 /**
@@ -47,7 +49,7 @@ const mcpAuth = new MCPAuth({
  * @type {(token: string) => Promise<AuthInfo>}
  */
 const verifyToken = async (token) => {
-  const { issuer, userinfoEndpoint } = mcpAuth.config.server.metadata;
+  const { issuer, userinfoEndpoint } = authServerConfig.metadata;
 
   if (!userinfoEndpoint) {
     throw new Error('Userinfo endpoint is not configured in the server metadata');
