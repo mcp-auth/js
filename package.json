@@ -9,7 +9,7 @@
     "dev": "pnpm -r prepack && pnpm -r --parallel dev"
   },
   "engines": {
-    "node": "^20.19.0 || ^22.0.0 || ^23.0.0"
+    "node": "^20.19.0 || ^22.0.0 || ^23.0.0 || ^24.0.0" 
   },
   "packageManager": "pnpm@10.8.0",
   "devEngines": {
