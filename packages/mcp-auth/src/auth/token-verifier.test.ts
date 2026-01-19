@@ -135,6 +135,27 @@ describe('TokenVerifier', () => {
       });
       expect(verifyJwtMock).toHaveBeenCalledWith(token);
     });
+
+    it('should reuse the same remote JWK Set instance for the same JWKS URI', async () => {
+      const mockGetKey = vi.fn();
+      vi.mocked(jose.createRemoteJWKSet).mockReturnValue(mockGetKey);
+      vi.mocked(createVerifyJwt).mockReturnValue(vi.fn());
+
+      const token = await createJwt({
+        iss: 'https://trusted.issuer.com',
+        client_id: 'client12345',
+      });
+
+      const tokenVerifier = new TokenVerifier(authServers);
+      const verifyJwtFunction = tokenVerifier.createVerifyJwtFunction({});
+
+      // Call twice with same issuer
+      await verifyJwtFunction(token);
+      await verifyJwtFunction(token);
+
+      // Should only create once due to caching
+      expect(jose.createRemoteJWKSet).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('getJwtIssuerValidator', () => {
