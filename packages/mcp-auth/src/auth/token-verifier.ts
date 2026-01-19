@@ -11,8 +11,10 @@ import {
   type ValidateIssuerFunction,
   type VerifyAccessTokenFunction,
 } from '../handlers/handle-bearer-auth.js';
-import { type AuthServerConfig } from '../types/auth-server.js';
+import { type AuthServerConfig, getIssuer } from '../types/auth-server.js';
 import { createVerifyJwt } from '../utils/create-verify-jwt.js';
+
+import { AuthServerMetadataCache } from './auth-server-metadata-cache.js';
 
 /**
  * Defines configuration options for creating a JWT verification function.
@@ -41,6 +43,9 @@ export type GetTokenVerifierOptions = {
  * This class is a central internal abstraction that holds the authentication context, such as
  * the complete list of trusted authorization servers. It is responsible for creating
  * verification functions and validating token issuers based on that context.
+ *
+ * Supports both resolved configs (with metadata) and discovery configs (with on-demand
+ * metadata fetching), making it compatible with edge runtimes like Cloudflare Workers.
  */
 export class TokenVerifier {
   /**
@@ -51,15 +56,24 @@ export class TokenVerifier {
   private readonly jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
   /**
+   * Cache for auth server metadata, supporting both resolved and discovery configs.
+   */
+  private readonly metadataCache = new AuthServerMetadataCache();
+
+  /**
    * Creates an instance of TokenVerifier.
    * @param authServers The complete configuration of all authorization servers trusted by the
-   * associated resource.
+   * associated resource. Can include both resolved configs (with metadata) and discovery configs
+   * (with just issuer and type).
    */
   constructor(private readonly authServers: AuthServerConfig[]) {}
 
   /**
    * A factory method that creates a JWT verification function tailored to this verifier's policies.
    * The returned function will only trust issuers specified in this verifier's `authServers`.
+   *
+   * For discovery configs, the metadata will be fetched on first token verification.
+   *
    * @param config The per-call configuration for JWT verification.
    * @returns A function that takes a token string and returns a promise resolving with the
    * verified claims.
@@ -74,15 +88,25 @@ export class TokenVerifier {
        */
       this.getJwtIssuerValidator()(unverifiedIssuer);
 
-      const { jwksUri } = this.getAuthServerMetadataByIssuer(unverifiedIssuer) ?? {};
+      const authServerConfig = this.getAuthServerConfigByIssuer(unverifiedIssuer);
 
-      if (!jwksUri) {
+      if (!authServerConfig) {
+        // This shouldn't happen as getJwtIssuerValidator would have thrown
+        throw new MCPAuthBearerAuthError('invalid_issuer', {
+          expected: this.getTrustedIssuers().join(', '),
+          actual: unverifiedIssuer,
+        });
+      }
+
+      const metadata = await this.metadataCache.getMetadata(authServerConfig);
+
+      if (!metadata.jwksUri) {
         throw new MCPAuthAuthServerError('missing_jwks_uri', {
           cause: `The authorization server (\`${unverifiedIssuer}\`) does not have a JWKS URI configured.`,
         });
       }
 
-      const getKey = this.getOrCreateRemoteJWKSet(jwksUri, remoteJwkSet);
+      const getKey = this.getOrCreateRemoteJWKSet(metadata.jwksUri, remoteJwkSet);
       return createVerifyJwt(getKey, jwtVerify)(token);
     };
   }
@@ -94,15 +118,30 @@ export class TokenVerifier {
    */
   getJwtIssuerValidator(): ValidateIssuerFunction {
     return (issuer: string) => {
-      const authServer = this.getAuthServerMetadataByIssuer(issuer);
+      const authServerConfig = this.getAuthServerConfigByIssuer(issuer);
 
-      if (!authServer) {
+      if (!authServerConfig) {
         throw new MCPAuthBearerAuthError('invalid_issuer', {
-          expected: this.authServers.map(({ metadata }) => metadata.issuer).join(', '),
+          expected: this.getTrustedIssuers().join(', '),
           actual: issuer,
         });
       }
     };
+  }
+
+  /**
+   * Gets the list of trusted issuer URLs from both resolved and discovery configs.
+   */
+  private getTrustedIssuers(): string[] {
+    return this.authServers.map((config) => getIssuer(config));
+  }
+
+  /**
+   * Finds the auth server config for a given issuer.
+   * Works with both resolved configs (checks metadata.issuer) and discovery configs (checks issuer directly).
+   */
+  private getAuthServerConfigByIssuer(issuer: string): AuthServerConfig | undefined {
+    return this.authServers.find((config) => getIssuer(config) === issuer);
   }
 
   /**
@@ -128,15 +167,6 @@ export class TokenVerifier {
     }
 
     return payload.iss;
-  }
-
-  /**
-   * Finds the full metadata for a given issuer from the list of configured authorization servers.
-   * @param issuer The issuer URL to look up.
-   * @returns The corresponding `AuthServerMetadata` or `undefined` if not found.
-   */
-  private getAuthServerMetadataByIssuer(issuer: string) {
-    return this.authServers.find(({ metadata }) => metadata.issuer === issuer)?.metadata;
   }
 
   /**

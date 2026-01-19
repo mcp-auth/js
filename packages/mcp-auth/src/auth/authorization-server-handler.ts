@@ -1,9 +1,12 @@
-import { type Router } from 'express';
+import cors from 'cors';
+import { Router, type Router as RouterType } from 'express';
+import snakecaseKeys from 'snakecase-keys';
 
-import { createDelegatedRouter } from '../routers/create-delegated-router.js';
 import { type AuthServerConfig } from '../types/auth-server.js';
+import { serverMetadataPaths } from '../utils/fetch-server-config.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
+import { AuthServerMetadataCache } from './auth-server-metadata-cache.js';
 import { MCPAuthHandler } from './mcp-auth-handler.js';
 import { type GetTokenVerifierOptions, TokenVerifier } from './token-verifier.js';
 
@@ -27,6 +30,9 @@ export class AuthorizationServerHandler extends MCPAuthHandler {
   /** The `TokenVerifier` for the legacy `server` configuration. */
   private readonly tokenVerifier: TokenVerifier;
 
+  /** Cache for auth server metadata, supporting discovery configs. */
+  private readonly metadataCache = new AuthServerMetadataCache();
+
   constructor(private readonly config: AuthServerModeConfig) {
     super();
 
@@ -37,8 +43,17 @@ export class AuthorizationServerHandler extends MCPAuthHandler {
     this.tokenVerifier = new TokenVerifier([config.server]);
   }
 
-  createMetadataRouter(): Router {
-    return createDelegatedRouter(this.config.server.metadata);
+  createMetadataRouter(): RouterType {
+    // eslint-disable-next-line new-cap
+    const router = Router();
+
+    router.use(serverMetadataPaths.oauth, cors());
+    router.get(serverMetadataPaths.oauth, async (_, response) => {
+      const metadata = await this.metadataCache.getMetadata(this.config.server);
+      response.status(200).json(snakecaseKeys(metadata));
+    });
+
+    return router;
   }
 
   /**

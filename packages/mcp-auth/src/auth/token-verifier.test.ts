@@ -3,7 +3,11 @@ import * as jose from 'jose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MCPAuthBearerAuthError } from '../errors.js';
-import { type AuthServerConfig } from '../types/auth-server.js';
+import {
+  type AuthServerConfig,
+  type AuthServerDiscoveryConfig,
+  getIssuer,
+} from '../types/auth-server.js';
 import { createVerifyJwt } from '../utils/create-verify-jwt.js';
 
 import { TokenVerifier } from './token-verifier.js';
@@ -138,7 +142,9 @@ describe('TokenVerifier', () => {
 
     it('should reuse the same remote JWK Set instance for the same JWKS URI', async () => {
       const mockGetKey = vi.fn();
-      vi.mocked(jose.createRemoteJWKSet).mockReturnValue(mockGetKey);
+      vi.mocked(jose.createRemoteJWKSet).mockReturnValue(
+        mockGetKey as unknown as ReturnType<typeof jose.createRemoteJWKSet>
+      );
       vi.mocked(createVerifyJwt).mockReturnValue(vi.fn());
 
       const token = await createJwt({
@@ -171,12 +177,56 @@ describe('TokenVerifier', () => {
       const tokenVerifier = new TokenVerifier(authServers);
       const validator = tokenVerifier.getJwtIssuerValidator();
       const expectedError = new MCPAuthBearerAuthError('invalid_issuer', {
-        expected: authServers.map(({ metadata }) => metadata.issuer).join(', '),
+        expected: authServers.map((config) => getIssuer(config)).join(', '),
         actual: 'https://untrusted.issuer.com',
       });
       expect(() => {
         validator('https://untrusted.issuer.com');
       }).toThrow(expectedError);
+    });
+
+    it('should work with discovery config', () => {
+      const discoveryConfig: AuthServerDiscoveryConfig = {
+        issuer: 'https://discovery.issuer.com',
+        type: 'oidc',
+      };
+      const tokenVerifier = new TokenVerifier([discoveryConfig]);
+      const validator = tokenVerifier.getJwtIssuerValidator();
+
+      // Should not throw for the configured issuer
+      expect(() => {
+        validator('https://discovery.issuer.com');
+      }).not.toThrow();
+
+      // Should throw for untrusted issuer
+      expect(() => {
+        validator('https://untrusted.issuer.com');
+      }).toThrow(MCPAuthBearerAuthError);
+    });
+
+    it('should work with mixed resolved and discovery configs', () => {
+      const discoveryConfig: AuthServerDiscoveryConfig = {
+        issuer: 'https://discovery.issuer.com',
+        type: 'oidc',
+      };
+      const mixedConfigs: AuthServerConfig[] = [...authServers, discoveryConfig];
+      const tokenVerifier = new TokenVerifier(mixedConfigs);
+      const validator = tokenVerifier.getJwtIssuerValidator();
+
+      // Should not throw for resolved config issuer
+      expect(() => {
+        validator('https://trusted.issuer.com');
+      }).not.toThrow();
+
+      // Should not throw for discovery config issuer
+      expect(() => {
+        validator('https://discovery.issuer.com');
+      }).not.toThrow();
+
+      // Should throw for untrusted issuer
+      expect(() => {
+        validator('https://untrusted.issuer.com');
+      }).toThrow(MCPAuthBearerAuthError);
     });
   });
 });

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { MCPAuthAuthServerError } from '../errors.js';
-import { type AuthServerConfig } from '../types/auth-server.js';
+import { type AuthServerConfig, type AuthServerDiscoveryConfig } from '../types/auth-server.js';
 
 import { validateAuthServer } from './validate-auth-server.js';
 import { validateServerConfig } from './validate-server-config.js';
@@ -89,5 +89,18 @@ describe('validateAuthServer', () => {
       validateAuthServer(mockAuthServer);
     }).not.toThrow();
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  test('should skip validation for discovery config (no metadata)', () => {
+    const discoveryConfig: AuthServerDiscoveryConfig = {
+      issuer: 'https://example.com',
+      type: 'oidc',
+    };
+
+    // Should not throw and should not call validateServerConfig
+    expect(() => {
+      validateAuthServer(discoveryConfig);
+    }).not.toThrow();
+    expect(validateServerConfig).not.toHaveBeenCalled();
   });
 });

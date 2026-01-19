@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { type AuthServerConfig } from '../types/auth-server.js';
+import { type AuthServerConfig, type AuthServerDiscoveryConfig } from '../types/auth-server.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
 import {
@@ -30,6 +30,11 @@ describe('AuthorizationServerHandler', () => {
     server: mockServerConfig,
   };
 
+  const discoveryConfig: AuthServerDiscoveryConfig = {
+    issuer: 'https://discovery.example.com',
+    type: 'oidc',
+  };
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -51,6 +56,15 @@ describe('AuthorizationServerHandler', () => {
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         'The authorization server mode is deprecated. Please use resource server mode instead.'
       );
+    });
+
+    it('should work with discovery config', () => {
+      const discoveryMockConfig: AuthServerModeConfig = {
+        server: discoveryConfig,
+      };
+      const _ = new AuthorizationServerHandler(discoveryMockConfig);
+      expect(validateAuthServer).toHaveBeenCalledWith(discoveryConfig);
+      expect(TokenVerifier).toHaveBeenCalledWith([discoveryConfig]);
     });
   });
 

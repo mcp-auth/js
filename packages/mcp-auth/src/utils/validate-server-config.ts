@@ -1,6 +1,6 @@
 import { condObject } from '@silverhand/essentials';
 
-import { type AuthServerConfig } from '../types/auth-server.js';
+import { type ResolvedAuthServerConfig } from '../types/auth-server.js';
 import { camelCaseAuthorizationServerMetadataSchema, defaultValues } from '../types/oauth.js';
 
 /**
@@ -139,25 +139,29 @@ type AuthServerConfigValidationResult =
 
 type ValidateServerConfig = {
   /**
-   * Validates the authorization server configuration against the MCP specification.
+   * Validates the resolved authorization server configuration against the MCP specification.
    *
-   * @param config The configuration object containing the server metadata to validate.
+   * Note: This function only validates resolved configs with metadata.
+   *
+   * @param config The resolved configuration object containing the server metadata to validate.
    * @returns An object indicating whether the configuration is valid (`{ isValid: true }`) or
    * invalid (`{ isValid: false }`), along with any errors or warnings encountered during validation.
    * @see {@link AuthServerConfigValidationResult} for the structure of the return value.
    */
-  (config: Readonly<AuthServerConfig>): AuthServerConfigValidationResult;
+  (config: Readonly<ResolvedAuthServerConfig>): AuthServerConfigValidationResult;
   /**
-   * Validates the authorization server configuration against the MCP specification.
+   * Validates the resolved authorization server configuration against the MCP specification.
    *
-   * @param config The configuration object containing the server metadata to validate.
+   * Note: This function only validates resolved configs with metadata.
+   *
+   * @param config The resolved configuration object containing the server metadata to validate.
    * @param verbose If `true`, the validation will include success messages in the result.
    * @returns An object indicating whether the configuration is valid (`{ isValid: true }`) or
    * invalid (`{ isValid: false }`), along with any errors or warnings encountered during validation.
    * @see {@link AuthServerConfigValidationResult} for the structure of the return value.
    */
   (
-    config: Readonly<AuthServerConfig>,
+    config: Readonly<ResolvedAuthServerConfig>,
     verbose: true
   ): AuthServerConfigValidationResult & {
     /** An array of success messages encountered during validation. */

@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { MCPAuthAuthServerError } from '../errors.js';
-import { type AuthServerConfig } from '../types/auth-server.js';
+import {
+  type AuthServerDiscoveryConfig,
+  type ResolvedAuthServerConfig,
+} from '../types/auth-server.js';
 import { type ResourceServerConfig } from '../types/resource-server.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
 
@@ -11,7 +14,7 @@ import { TokenVerifier } from './token-verifier.js';
 vi.mock('../utils/validate-auth-server.js');
 vi.mock('./token-verifier.js');
 
-const authServer1: AuthServerConfig = {
+const authServer1: ResolvedAuthServerConfig = {
   metadata: {
     issuer: 'https://auth1.example.com',
     authorizationEndpoint: 'https://auth1.example.com/oauth/authorize',
@@ -24,7 +27,7 @@ const authServer1: AuthServerConfig = {
   type: 'oauth',
 };
 
-const authServer2: AuthServerConfig = {
+const authServer2: ResolvedAuthServerConfig = {
   type: 'oauth',
   metadata: {
     issuer: 'https://auth2.example.com',
@@ -35,6 +38,11 @@ const authServer2: AuthServerConfig = {
     grantTypesSupported: ['authorization_code'],
     codeChallengeMethodsSupported: ['S256'],
   },
+};
+
+const discoveryAuthServer: AuthServerDiscoveryConfig = {
+  issuer: 'https://discovery-auth.example.com',
+  type: 'oidc',
 };
 
 const resourceServerConfig1: ResourceServerConfig = {
@@ -117,6 +125,57 @@ describe('ResourceServerHandler', () => {
       expect(validateAuthServer).toHaveBeenCalledTimes(2);
       expect(TokenVerifier).toHaveBeenCalledTimes(2);
     });
+
+    it('should work with discovery config', () => {
+      const resourceWithDiscovery: ResourceServerConfig = {
+        metadata: {
+          resource: 'https://api.example.com/resource-discovery',
+          authorizationServers: [discoveryAuthServer],
+          scopesSupported: ['read', 'write'],
+        },
+      };
+      const mockConfig: ResourceServerModeConfig = {
+        protectedResources: resourceWithDiscovery,
+      };
+
+      expect(() => new ResourceServerHandler(mockConfig)).not.toThrow();
+      expect(validateAuthServer).toHaveBeenCalledWith(discoveryAuthServer);
+      expect(TokenVerifier).toHaveBeenCalledWith([discoveryAuthServer]);
+    });
+
+    it('should detect duplicate discovery config issuers for a single resource', () => {
+      const resourceWithDuplicatedDiscovery: ResourceServerConfig = {
+        metadata: {
+          resource: 'https://api.example.com/resource-dup',
+          authorizationServers: [discoveryAuthServer, discoveryAuthServer],
+        },
+      };
+      const mockConfig: ResourceServerModeConfig = {
+        protectedResources: resourceWithDuplicatedDiscovery,
+      };
+      const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
+        cause: `The authorization server (\`${discoveryAuthServer.issuer}\`) for resource \`https://api.example.com/resource-dup\` is duplicated.`,
+      });
+      expect(() => new ResourceServerHandler(mockConfig)).toThrow(expectedError);
+    });
+
+    it('should work with mixed resolved and discovery configs', () => {
+      const resourceWithMixed: ResourceServerConfig = {
+        metadata: {
+          resource: 'https://api.example.com/resource-mixed',
+          authorizationServers: [authServer1, discoveryAuthServer],
+          scopesSupported: ['read', 'write'],
+        },
+      };
+      const mockConfig: ResourceServerModeConfig = {
+        protectedResources: resourceWithMixed,
+      };
+
+      expect(() => new ResourceServerHandler(mockConfig)).not.toThrow();
+      expect(validateAuthServer).toHaveBeenCalledWith(authServer1);
+      expect(validateAuthServer).toHaveBeenCalledWith(discoveryAuthServer);
+      expect(TokenVerifier).toHaveBeenCalledWith([authServer1, discoveryAuthServer]);
+    });
   });
 
   describe('createMetadataRouter', () => {
@@ -176,6 +235,7 @@ describe('ResourceServerHandler', () => {
         cause:
           'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResources` configuration.',
       });
+      // @ts-expect-error - Testing runtime behavior when resource is not specified
       expect(() => handler.getTokenVerifier({})).toThrow(expectedError);
     });
 
