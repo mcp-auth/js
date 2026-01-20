@@ -229,4 +229,31 @@ describe('TokenVerifier', () => {
       }).toThrow(MCPAuthBearerAuthError);
     });
   });
+
+  describe('defensive branch coverage', () => {
+    it('should throw an MCPAuthBearerAuthError if authServerConfig is not found after validation passes (defensive branch)', async () => {
+      const token = await createJwt({
+        iss: 'https://trusted.issuer.com',
+        client_id: 'client12345',
+      });
+
+      const tokenVerifier = new TokenVerifier(authServers);
+
+      // Mock getJwtIssuerValidator to return a no-op function (bypasses issuer validation)
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      vi.spyOn(tokenVerifier, 'getJwtIssuerValidator').mockReturnValue(() => {});
+
+      // Mock getAuthServerConfigByIssuer to return undefined (simulates config not found)
+      vi.spyOn(
+        tokenVerifier as unknown as { getAuthServerConfigByIssuer: () => void },
+        'getAuthServerConfigByIssuer'
+      ).mockReturnValue();
+
+      await expect(
+        tokenVerifier.createVerifyJwtFunction({})(token)
+      ).rejects.toThrowErrorMatchingInlineSnapshot(
+        '[MCPAuthBearerAuthError: The token issuer does not match the expected issuer.]'
+      );
+    });
+  });
 });

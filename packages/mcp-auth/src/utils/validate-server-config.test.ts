@@ -2,7 +2,7 @@ import assert from 'node:assert';
 
 import { describe, expect, it } from 'vitest';
 
-import { type AuthServerConfig } from '../types/auth-server.js';
+import { type AuthServerConfig, type ResolvedAuthServerConfig } from '../types/auth-server.js';
 
 import { validateServerConfig } from './validate-server-config.js';
 
@@ -135,6 +135,23 @@ describe('validateServerConfig', () => {
         expect.objectContaining({ code: 's256_code_challenge_method_not_supported' }),
       ])
     );
+  });
+
+  it('should return invalid_server_metadata error when metadata is missing required fields', () => {
+    const config = {
+      type: 'oauth',
+      metadata: {
+        // Missing required fields: issuer, authorizationEndpoint, tokenEndpoint, responseTypesSupported
+      },
+    } as unknown as ResolvedAuthServerConfig;
+
+    const result = validateServerConfig(config);
+    assert(!result.isValid, 'Expected isValid to be false');
+    expect(result.errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'invalid_server_metadata' })])
+    );
+    // Should have the ZodError as the cause
+    expect(result.errors[0]?.cause).toBeDefined();
   });
 });
 
