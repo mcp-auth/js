@@ -365,7 +365,6 @@ export const handleBearerAuth = ({
       request.auth = authInfo;
       next();
     } catch (error) {
-      console.error('Error during Bearer auth:', error);
       handleError(
         error,
         response,
