@@ -44,6 +44,13 @@ export type GetTokenVerifierOptions = {
  */
 export class TokenVerifier {
   /**
+   * Cache for remote JWK Set instances, keyed by JWKS URI.
+   * This ensures we reuse the same instance for the same URI, allowing jose's
+   * internal caching (cooldownDuration, cacheMaxAge) to work effectively.
+   */
+  private readonly jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
+  /**
    * Creates an instance of TokenVerifier.
    * @param authServers The complete configuration of all authorization servers trusted by the
    * associated resource.
@@ -75,7 +82,8 @@ export class TokenVerifier {
         });
       }
 
-      return createVerifyJwt(createRemoteJWKSet(new URL(jwksUri), remoteJwkSet), jwtVerify)(token);
+      const getKey = this.getOrCreateRemoteJWKSet(jwksUri, remoteJwkSet);
+      return createVerifyJwt(getKey, jwtVerify)(token);
     };
   }
 
@@ -129,5 +137,24 @@ export class TokenVerifier {
    */
   private getAuthServerMetadataByIssuer(issuer: string) {
     return this.authServers.find(({ metadata }) => metadata.issuer === issuer)?.metadata;
+  }
+
+  /**
+   * Gets an existing remote JWK Set instance from the cache, or creates a new one if not cached.
+   * Caching the instance allows jose's internal mechanisms (cooldownDuration, cacheMaxAge) to
+   * work effectively, reducing redundant HTTP requests to the JWKS endpoint.
+   */
+  private getOrCreateRemoteJWKSet(
+    jwksUri: string,
+    options?: RemoteJWKSetOptions
+  ): ReturnType<typeof createRemoteJWKSet> {
+    const cached = this.jwksCache.get(jwksUri);
+    if (cached) {
+      return cached;
+    }
+
+    const getKey = createRemoteJWKSet(new URL(jwksUri), options);
+    this.jwksCache.set(jwksUri, getKey);
+    return getKey;
   }
 }
