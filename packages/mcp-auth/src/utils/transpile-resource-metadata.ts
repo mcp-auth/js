@@ -1,5 +1,6 @@
 import { cond } from '@silverhand/essentials';
 
+import { getIssuer } from '../types/auth-server.js';
 import { type CamelCaseProtectedResourceMetadata } from '../types/oauth.js';
 import { type ResourceServerConfig } from '../types/resource-server.js';
 
@@ -12,17 +13,25 @@ import { type ResourceServerConfig } from '../types/resource-server.js';
  * represented as issuer URL strings, while MCP Auth internally uses `AuthServerConfig` objects to store the complete
  * authorization server metadata for token validation and issuer verification.
  *
+ * Supports both resolved configs (with metadata) and discovery configs (with just issuer and type).
+ *
  * @example
  * ```ts
  * const configMetadata = {
  *   resource: 'https://api.example.com',
  *   authorizationServers: [
+ *     // Resolved config
  *     {
  *       type: 'oidc',
  *       metadata: {
  *         issuer: 'https://auth.example.com',
  *         // ... other auth server metadata
  *       }
+ *     },
+ *     // Discovery config
+ *     {
+ *       issuer: 'https://auth2.example.com',
+ *       type: 'oidc'
  *     }
  *   ],
  *   scopesSupported: ['read', 'write']
@@ -32,7 +41,7 @@ import { type ResourceServerConfig } from '../types/resource-server.js';
  * // Result:
  * // {
  * //   resource: 'https://api.example.com',
- * //   authorizationServers: ['https://auth.example.com'],
+ * //   authorizationServers: ['https://auth.example.com', 'https://auth2.example.com'],
  * //   scopesSupported: ['read', 'write']
  * // }
  * ```
@@ -49,7 +58,7 @@ export const transpileResourceMetadata = (
     ...rest,
     ...cond(
       authorizationServers?.length && {
-        authorizationServers: authorizationServers.map(({ metadata }) => metadata.issuer),
+        authorizationServers: authorizationServers.map((config) => getIssuer(config)),
       }
     ),
   };

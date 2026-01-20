@@ -2,7 +2,7 @@ import { appendPath, joinPath } from '@silverhand/essentials';
 import camelcaseKeys from 'camelcase-keys';
 
 import { MCPAuthAuthServerError, MCPAuthConfigError } from '../errors.js';
-import { type AuthServerConfig, type AuthServerType } from '../types/auth-server.js';
+import { type AuthServerType, type ResolvedAuthServerConfig } from '../types/auth-server.js';
 import {
   type AuthorizationServerMetadata,
   authorizationServerMetadataSchema,
@@ -51,7 +51,7 @@ type ServerMetadataConfig = {
  * @param wellKnownUrl The well-known URL to fetch the server configuration from. This can be a
  * string or a URL object.
  * @param config The configuration object containing the server type and optional transpile function.
- * @returns A promise that resolves to the server configuration.
+ * @returns A promise that resolves to the static server configuration with fetched metadata.
  * @throws {MCPAuthConfigError} if the fetch operation fails.
  * @throws {MCPAuthAuthServerError} if the server metadata is invalid or does not match the
  * MCP specification.
@@ -59,7 +59,7 @@ type ServerMetadataConfig = {
 export const fetchServerConfigByWellKnownUrl = async (
   wellKnownUrl: string | URL,
   { type, transpileData }: ServerMetadataConfig
-): Promise<AuthServerConfig> => {
+): Promise<ResolvedAuthServerConfig> => {
   const response = await fetch(wellKnownUrl);
 
   if (!response.ok) {
@@ -119,7 +119,7 @@ export const fetchServerConfigByWellKnownUrl = async (
  *
  * @param issuer The issuer URL of the authorization server.
  * @param config The configuration object containing the server type and optional transpile function.
- * @returns A promise that resolves to the server configuration.
+ * @returns A promise that resolves to the static server configuration with fetched metadata.
  * @throws {MCPAuthConfigError} if the fetch operation fails.
  * @throws {MCPAuthAuthServerError} if the server metadata is invalid or does not match the
  * MCP specification.
@@ -127,7 +127,7 @@ export const fetchServerConfigByWellKnownUrl = async (
 export const fetchServerConfig = async (
   issuer: string,
   config: ServerMetadataConfig
-): Promise<AuthServerConfig> =>
+): Promise<ResolvedAuthServerConfig> =>
   fetchServerConfigByWellKnownUrl(
     config.type === 'oauth' ? getOAuthWellKnownUrl(issuer) : getOidcWellKnownUrl(issuer),
     config

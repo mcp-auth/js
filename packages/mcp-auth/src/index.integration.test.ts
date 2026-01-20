@@ -5,12 +5,7 @@ import snakecaseKeys from 'snakecase-keys';
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import {
-  type AuthServerConfig,
-  type AuthServerModeConfig,
-  MCPAuth,
-  serverMetadataPaths,
-} from './index.js';
+import { type ResolvedAuthServerConfig, MCPAuth, serverMetadataPaths } from './index.js';
 import { type ResourceServerConfig } from './types/resource-server.js';
 
 const generateToken = async ({
@@ -60,7 +55,7 @@ describe('MCP Server as authorization server', () => {
       codeChallengeMethodsSupported: ['S256'],
       registrationEndpoint: `${issuer}${registrationPath}`,
       revocationEndpoint: `${issuer}${revocationPath}`,
-    } satisfies AuthServerModeConfig['server']['metadata']);
+    } satisfies ResolvedAuthServerConfig['metadata']);
 
     it('should create a delegated router with correct metadata', async () => {
       const auth = new MCPAuth({ server: { type: 'oauth', metadata: serverMetadata } });
@@ -88,7 +83,7 @@ describe('MCP Server as authorization server', () => {
       responseTypesSupported: ['code'],
       grantTypesSupported: ['authorization_code'],
       codeChallengeMethodsSupported: ['S256'],
-    } satisfies AuthServerModeConfig['server']['metadata']);
+    } satisfies ResolvedAuthServerConfig['metadata']);
 
     const createApp = () => {
       const auth = new MCPAuth({ server: { type: 'oauth', metadata } });
@@ -146,7 +141,7 @@ describe('MCP Server as resource server', () => {
   const resource1 = 'https://api.example.com/resource1';
   const resource2 = 'https://api.example.com/resource2';
 
-  const authServer1: AuthServerConfig = {
+  const authServer1: ResolvedAuthServerConfig = {
     metadata: {
       issuer: 'https://auth1.example.com',
       authorizationEndpoint: 'https://auth1.example.com/oauth/authorize',
@@ -159,7 +154,7 @@ describe('MCP Server as resource server', () => {
     type: 'oauth',
   };
 
-  const authServer2: AuthServerConfig = {
+  const authServer2: ResolvedAuthServerConfig = {
     type: 'oauth',
     metadata: {
       issuer: 'https://auth2.example.com',

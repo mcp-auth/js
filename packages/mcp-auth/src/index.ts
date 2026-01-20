@@ -48,17 +48,45 @@ export type VerifyAccessTokenMode = 'jwt';
  *
  * This is the recommended approach for new applications.
  *
+ * #### Option 1: Discovery config (recommended for edge runtimes)
+ *
+ * Use this when you want metadata to be fetched on-demand. This is especially useful for
+ * edge runtimes like Cloudflare Workers where top-level async fetch is not allowed.
+ *
+ * ```ts
+ * import express from 'express';
+ * import { MCPAuth } from 'mcp-auth';
+ *
+ * const app = express();
+ * const resourceIdentifier = 'https://api.example.com/notes';
+ *
+ * const mcpAuth = new MCPAuth({
+ *   protectedResources: [
+ *     {
+ *       metadata: {
+ *         resource: resourceIdentifier,
+ *         // Just pass issuer and type - metadata will be fetched on first request
+ *         authorizationServers: [{ issuer: 'https://auth.logto.io/oidc', type: 'oidc' }],
+ *         scopesSupported: ['read:notes', 'write:notes'],
+ *       },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * #### Option 2: Resolved config (pre-fetched metadata)
+ *
+ * Use this when you want to fetch and validate metadata at startup time.
+ *
  * ```ts
  * import express from 'express';
  * import { MCPAuth, fetchServerConfig } from 'mcp-auth';
  *
  * const app = express();
- *
  * const resourceIdentifier = 'https://api.example.com/notes';
  * const authServerConfig = await fetchServerConfig('https://auth.logto.io/oidc', { type: 'oidc' });
  *
  * const mcpAuth = new MCPAuth({
- *   // `protectedResources` can be a single configuration object or an array of them.
  *   protectedResources: [
  *     {
  *       metadata: {
@@ -69,7 +97,11 @@ export type VerifyAccessTokenMode = 'jwt';
  *     },
  *   ],
  * });
+ * ```
  *
+ * #### Using the middleware
+ *
+ * ```ts
  * // Mount the router to handle Protected Resource Metadata
  * app.use(mcpAuth.protectedResourceMetadataRouter());
  *
@@ -94,14 +126,12 @@ export type VerifyAccessTokenMode = 'jwt';
  *
  * ```ts
  * import express from 'express';
- * import { MCPAuth, fetchServerConfig } from 'mcp-auth';
+ * import { MCPAuth } from 'mcp-auth';
  *
  * const app = express();
  * const mcpAuth = new MCPAuth({
- *   server: await fetchServerConfig(
- *     'https://auth.logto.io/oidc',
- *     { type: 'oidc' }
- *   ),
+ *   // Discovery config - metadata fetched on-demand
+ *   server: { issuer: 'https://auth.logto.io/oidc', type: 'oidc' },
  * });
  *
  * // Mount the router to handle legacy Authorization Server Metadata

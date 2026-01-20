@@ -2,6 +2,7 @@ import { type Router } from 'express';
 
 import { MCPAuthAuthServerError } from '../errors.js';
 import { createResourceMetadataRouter } from '../routers/create-resource-metadata-router.js';
+import { getIssuer } from '../types/auth-server.js';
 import { type ResourceServerConfig } from '../types/resource-server.js';
 import { transpileResourceMetadata } from '../utils/transpile-resource-metadata.js';
 import { validateAuthServer } from '../utils/validate-auth-server.js';
@@ -80,7 +81,7 @@ export class ResourceServerHandler extends MCPAuthHandler {
 
       const uniqueAuthServers = new Set<string>();
       for (const authServer of authorizationServers ?? []) {
-        const { issuer } = authServer.metadata;
+        const issuer = getIssuer(authServer);
         if (uniqueAuthServers.has(issuer)) {
           throw new MCPAuthAuthServerError('invalid_server_config', {
             cause: `The authorization server (\`${issuer}\`) for resource \`${resource}\` is duplicated.`,
