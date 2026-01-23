@@ -22,6 +22,7 @@ if (!MCP_RESOURCE_IDENTIFIER) {
   throw new Error('MCP_RESOURCE_IDENTIFIER environment variable is required');
 }
 
+// TodoService is a singleton since we need to share state across requests
 const todoService = new TodoService();
 
 const assertUserId = (authInfo?: AuthInfo) => {
@@ -33,108 +34,113 @@ const hasRequiredScopes = (userScopes: string[], requiredScopes: string[]): bool
   return requiredScopes.every((scope) => userScopes.includes(scope));
 };
 
-// Create an MCP server
-const server = new McpServer({
-  name: 'Todo Manager',
-  version: '0.0.0',
-});
+// Factory function to create an MCP server instance
+// In stateless mode, each request needs its own server instance
+const createMcpServer = () => {
+  const mcpServer = new McpServer({
+    name: 'Todo Manager',
+    version: '0.0.0',
+  });
 
-server.registerTool(
-  'create-todo',
-  {
-    description: 'Create a new todo',
-    inputSchema: { content: z.string() },
-  },
-  ({ content }, { authInfo }) => {
-    const userId = assertUserId(authInfo);
+  mcpServer.registerTool(
+    'create-todo',
+    {
+      description: 'Create a new todo',
+      inputSchema: { content: z.string() },
+    },
+    ({ content }, { authInfo }) => {
+      const userId = assertUserId(authInfo);
 
-    /**
-     * Only users with 'create:todos' scope can create todos
-     */
-    if (!hasRequiredScopes(authInfo?.scopes ?? [], ['create:todos'])) {
-      throw new MCPAuthBearerAuthError('missing_required_scopes');
-    }
+      /**
+       * Only users with 'create:todos' scope can create todos
+       */
+      if (!hasRequiredScopes(authInfo?.scopes ?? [], ['create:todos'])) {
+        throw new MCPAuthBearerAuthError('missing_required_scopes');
+      }
 
-    const createdTodo = todoService.createTodo({ content, ownerId: userId });
+      const createdTodo = todoService.createTodo({ content, ownerId: userId });
 
-    return {
-      content: [{ type: 'text', text: JSON.stringify(createdTodo) }],
-    };
-  }
-);
-
-server.registerTool(
-  'get-todos',
-  {
-    description: 'List all todos',
-    inputSchema: {},
-  },
-  (_params, { authInfo }) => {
-    const userId = assertUserId(authInfo);
-
-    /**
-     * If user has 'read:todos' scope, they can access all todos (todoOwnerId = undefined)
-     * If user doesn't have 'read:todos' scope, they can only access their own todos (todoOwnerId = userId)
-     */
-    const todoOwnerId = hasRequiredScopes(authInfo?.scopes ?? [], ['read:todos'])
-      ? undefined
-      : userId;
-
-    const todos = todoService.getAllTodos(todoOwnerId);
-
-    return {
-      content: [{ type: 'text', text: JSON.stringify(todos) }],
-    };
-  }
-);
-
-server.registerTool(
-  'delete-todo',
-  {
-    description: 'Delete a todo by id',
-    inputSchema: { id: z.string() },
-  },
-  ({ id }, { authInfo }) => {
-    const userId = assertUserId(authInfo);
-
-    const todo = todoService.getTodoById(id);
-
-    if (!todo) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: 'Failed to delete todo' }) }],
+        content: [{ type: 'text', text: JSON.stringify(createdTodo) }],
       };
     }
+  );
 
-    /**
-     * Users can only delete their own todos
-     * Users with 'delete:todos' scope can delete any todo
-     */
-    if (todo.ownerId !== userId && !hasRequiredScopes(authInfo?.scopes ?? [], ['delete:todos'])) {
+  mcpServer.registerTool(
+    'get-todos',
+    {
+      description: 'List all todos',
+      inputSchema: {},
+    },
+    (_params, { authInfo }) => {
+      const userId = assertUserId(authInfo);
+
+      /**
+       * If user has 'read:todos' scope, they can access all todos (todoOwnerId = undefined)
+       * If user doesn't have 'read:todos' scope, they can only access their own todos (todoOwnerId = userId)
+       */
+      const todoOwnerId = hasRequiredScopes(authInfo?.scopes ?? [], ['read:todos'])
+        ? undefined
+        : userId;
+
+      const todos = todoService.getAllTodos(todoOwnerId);
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(todos) }],
+      };
+    }
+  );
+
+  mcpServer.registerTool(
+    'delete-todo',
+    {
+      description: 'Delete a todo by id',
+      inputSchema: { id: z.string() },
+    },
+    ({ id }, { authInfo }) => {
+      const userId = assertUserId(authInfo);
+
+      const todo = todoService.getTodoById(id);
+
+      if (!todo) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ error: 'Failed to delete todo' }) }],
+        };
+      }
+
+      /**
+       * Users can only delete their own todos
+       * Users with 'delete:todos' scope can delete any todo
+       */
+      if (todo.ownerId !== userId && !hasRequiredScopes(authInfo?.scopes ?? [], ['delete:todos'])) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ error: 'Failed to delete todo' }),
+            },
+          ],
+        };
+      }
+
+      const deletedTodo = todoService.deleteTodo(id);
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ error: 'Failed to delete todo' }),
+            text: JSON.stringify({
+              message: `Todo ${id} deleted`,
+              details: deletedTodo,
+            }),
           },
         ],
       };
     }
+  );
 
-    const deletedTodo = todoService.deleteTodo(id);
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            message: `Todo ${id} deleted`,
-            details: deletedTodo,
-          }),
-        },
-      ],
-    };
-  }
-);
+  return mcpServer;
+};
 
 const mcpAuth = new MCPAuth({
   protectedResources: {
@@ -158,11 +164,17 @@ app.use(
 );
 
 app.post('/', async (request, response) => {
+  // In stateless mode, create a new instance of transport and server for each request
+  // to ensure complete isolation. A single instance would cause request ID collisions
+  // when multiple clients connect concurrently.
+  const mcpServer = createMcpServer();
+
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  await server.connect(transport);
+  await mcpServer.connect(transport);
   await transport.handleRequest(request, response, request.body);
   response.on('close', () => {
     void transport.close();
+    void mcpServer.close();
   });
 });
 

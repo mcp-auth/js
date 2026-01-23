@@ -18,27 +18,35 @@ import {
 
 configDotenv();
 
-// Create an MCP server
-const server = new McpServer({
-  name: 'WhoAmI',
-  version: '0.0.0',
-});
+// Factory function to create an MCP server instance
+// In stateless mode, each request needs its own server instance
+const createMcpServer = () => {
+  const mcpServer = new McpServer({
+    name: 'WhoAmI',
+    version: '0.0.0',
+  });
 
-// Add a tool to the server that returns the current user's information
-server.registerTool(
-  'whoami',
-  {
-    description: 'Get the current user information',
-    inputSchema: {},
-  },
-  (_params, { authInfo }) => {
-    return {
-      content: [
-        { type: 'text', text: JSON.stringify(authInfo?.claims ?? { error: 'Not authenticated' }) },
-      ],
-    };
-  }
-);
+  // Add a tool to the server that returns the current user's information
+  mcpServer.registerTool(
+    'whoami',
+    {
+      description: 'Get the current user information',
+      inputSchema: {},
+    },
+    (_params, { authInfo }) => {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(authInfo?.claims ?? { error: 'Not authenticated' }),
+          },
+        ],
+      };
+    }
+  );
+
+  return mcpServer;
+};
 
 const { MCP_AUTH_ISSUER } = process.env;
 
@@ -94,11 +102,16 @@ app.use(mcpAuth.delegatedRouter());
 app.use(mcpAuth.bearerAuth(verifyToken));
 
 app.post('/', async (request, response) => {
+  // In stateless mode, create a new instance of transport and server for each request
+  // to ensure complete isolation. A single instance would cause request ID collisions
+  // when multiple clients connect concurrently.
+  const mcpServer = createMcpServer();
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  await server.connect(transport);
+  await mcpServer.connect(transport);
   await transport.handleRequest(request, response, request.body);
   response.on('close', () => {
     void transport.close();
+    void mcpServer.close();
   });
 });
 
