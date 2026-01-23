@@ -6,7 +6,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { configDotenv } from 'dotenv';
 import express from 'express';
 import {
@@ -25,13 +25,20 @@ const server = new McpServer({
 });
 
 // Add a tool to the server that returns the current user's information
-server.tool('whoami', ({ authInfo }) => {
-  return {
-    content: [
-      { type: 'text', text: JSON.stringify(authInfo?.claims ?? { error: 'Not authenticated' }) },
-    ],
-  };
-});
+server.registerTool(
+  'whoami',
+  {
+    description: 'Get the current user information',
+    inputSchema: {},
+  },
+  (_params, { authInfo }) => {
+    return {
+      content: [
+        { type: 'text', text: JSON.stringify(authInfo?.claims ?? { error: 'Not authenticated' }) },
+      ],
+    };
+  }
+);
 
 const { MCP_AUTH_ISSUER } = process.env;
 
@@ -86,33 +93,13 @@ const app = express();
 app.use(mcpAuth.delegatedRouter());
 app.use(mcpAuth.bearerAuth(verifyToken));
 
-// Below is the boilerplate code from MCP SDK documentation
-const transports: Record<string, SSEServerTransport> = {};
-
-// eslint-disable-next-line unicorn/prevent-abbreviations
-app.get('/sse', async (_req, res) => {
-  // Create SSE transport for legacy clients
-  const transport = new SSEServerTransport('/messages', res);
-  // eslint-disable-next-line @silverhand/fp/no-mutation
-  transports[transport.sessionId] = transport;
-
-  res.on('close', () => {
-    // eslint-disable-next-line @silverhand/fp/no-delete, @typescript-eslint/no-dynamic-delete
-    delete transports[transport.sessionId];
-  });
-
+app.post('/', async (request, response) => {
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);
-});
-
-// eslint-disable-next-line unicorn/prevent-abbreviations
-app.post('/messages', async (req, res) => {
-  const sessionId = String(req.query.sessionId);
-  const transport = transports[sessionId];
-  if (transport) {
-    await transport.handlePostMessage(req, res, req.body);
-  } else {
-    res.status(400).send('No transport found for sessionId');
-  }
+  await transport.handleRequest(request, response, request.body);
+  response.on('close', () => {
+    void transport.close();
+  });
 });
 
 app.listen(PORT);
