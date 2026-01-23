@@ -25,11 +25,11 @@
     "node": "^20.19.0 || ^22.0.0 || ^23.0.0 || ^24.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.1",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "dotenv": "^16.5.0",
     "express": "5.0.1",
     "mcp-auth": "workspace:^",
-    "zod": "^3.24.3"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@silverhand/eslint-config": "^6.0.1",

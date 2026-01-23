@@ -2,22 +2,31 @@ import assert from 'node:assert';
 
 import { type AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { configDotenv } from 'dotenv';
 import express from 'express';
-import { fetchServerConfig, MCPAuth, MCPAuthBearerAuthError } from 'mcp-auth';
+import { MCPAuth, MCPAuthBearerAuthError } from 'mcp-auth';
 import { z } from 'zod';
 
 import { TodoService } from './todo-service.js';
 
 configDotenv();
 
+const { MCP_AUTH_ISSUER, MCP_RESOURCE_IDENTIFIER } = process.env;
+
+if (!MCP_AUTH_ISSUER) {
+  throw new Error('MCP_AUTH_ISSUER environment variable is required');
+}
+
+if (!MCP_RESOURCE_IDENTIFIER) {
+  throw new Error('MCP_RESOURCE_IDENTIFIER environment variable is required');
+}
+
 const todoService = new TodoService();
 
 const assertUserId = (authInfo?: AuthInfo) => {
-  const { subject } = authInfo ?? {};
-  assert(subject, 'Invalid auth info');
-  return subject;
+  assert(authInfo?.subject, 'Invalid auth info');
+  return authInfo.subject;
 };
 
 const hasRequiredScopes = (userScopes: string[], requiredScopes: string[]): boolean => {
@@ -30,11 +39,13 @@ const server = new McpServer({
   version: '0.0.0',
 });
 
-server.tool(
+server.registerTool(
   'create-todo',
-  'Create a new todo',
-  { content: z.string() },
-  ({ content }: { content: string }, { authInfo }) => {
+  {
+    description: 'Create a new todo',
+    inputSchema: { content: z.string() },
+  },
+  ({ content }, { authInfo }) => {
     const userId = assertUserId(authInfo);
 
     /**
@@ -52,29 +63,38 @@ server.tool(
   }
 );
 
-server.tool('get-todos', 'List all todos', ({ authInfo }) => {
-  const userId = assertUserId(authInfo);
+server.registerTool(
+  'get-todos',
+  {
+    description: 'List all todos',
+    inputSchema: {},
+  },
+  (_params, { authInfo }) => {
+    const userId = assertUserId(authInfo);
 
-  /**
-   * If user has 'read:todos' scope, they can access all todos (todoOwnerId = undefined)
-   * If user doesn't have 'read:todos' scope, they can only access their own todos (todoOwnerId = userId)
-   */
-  const todoOwnerId = hasRequiredScopes(authInfo?.scopes ?? [], ['read:todos'])
-    ? undefined
-    : userId;
+    /**
+     * If user has 'read:todos' scope, they can access all todos (todoOwnerId = undefined)
+     * If user doesn't have 'read:todos' scope, they can only access their own todos (todoOwnerId = userId)
+     */
+    const todoOwnerId = hasRequiredScopes(authInfo?.scopes ?? [], ['read:todos'])
+      ? undefined
+      : userId;
 
-  const todos = todoService.getAllTodos(todoOwnerId);
+    const todos = todoService.getAllTodos(todoOwnerId);
 
-  return {
-    content: [{ type: 'text', text: JSON.stringify(todos) }],
-  };
-});
+    return {
+      content: [{ type: 'text', text: JSON.stringify(todos) }],
+    };
+  }
+);
 
-server.tool(
+server.registerTool(
   'delete-todo',
-  'Delete a todo by id',
-  { id: z.string() },
-  ({ id }: { id: string }, { authInfo }) => {
+  {
+    description: 'Delete a todo by id',
+    inputSchema: { id: z.string() },
+  },
+  ({ id }, { authInfo }) => {
     const userId = assertUserId(authInfo);
 
     const todo = todoService.getTodoById(id);
@@ -116,51 +136,34 @@ server.tool(
   }
 );
 
-const { MCP_AUTH_ISSUER } = process.env;
-
-if (!MCP_AUTH_ISSUER) {
-  throw new Error('MCP_AUTH_ISSUER environment variable is required');
-}
-
-const authServerConfig = await fetchServerConfig(MCP_AUTH_ISSUER, { type: 'oidc' });
-
 const mcpAuth = new MCPAuth({
-  server: authServerConfig,
+  protectedResources: {
+    metadata: {
+      resource: MCP_RESOURCE_IDENTIFIER,
+      authorizationServers: [{ issuer: MCP_AUTH_ISSUER, type: 'oidc' }],
+      scopesSupported: ['create:todos', 'read:todos', 'delete:todos'],
+    },
+  },
 });
 
 const PORT = 3001;
 const app = express();
 
-app.use(mcpAuth.delegatedRouter());
-app.use(mcpAuth.bearerAuth('jwt'));
+app.use(mcpAuth.protectedResourceMetadataRouter());
+app.use(
+  mcpAuth.bearerAuth('jwt', {
+    resource: MCP_RESOURCE_IDENTIFIER,
+    audience: MCP_RESOURCE_IDENTIFIER,
+  })
+);
 
-// Below is the boilerplate code from MCP SDK documentation
-const transports: Record<string, SSEServerTransport> = {};
-
-// eslint-disable-next-line unicorn/prevent-abbreviations
-app.get('/sse', async (_req, res) => {
-  // Create SSE transport for legacy clients
-  const transport = new SSEServerTransport('/messages', res);
-  // eslint-disable-next-line @silverhand/fp/no-mutation
-  transports[transport.sessionId] = transport;
-
-  res.on('close', () => {
-    // eslint-disable-next-line @silverhand/fp/no-delete, @typescript-eslint/no-dynamic-delete
-    delete transports[transport.sessionId];
-  });
-
+app.post('/', async (request, response) => {
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);
-});
-
-// eslint-disable-next-line unicorn/prevent-abbreviations
-app.post('/messages', async (req, res) => {
-  const sessionId = String(req.query.sessionId);
-  const transport = transports[sessionId];
-  if (transport) {
-    await transport.handlePostMessage(req, res, req.body);
-  } else {
-    res.status(400).send('No transport found for sessionId');
-  }
+  await transport.handleRequest(request, response, request.body);
+  response.on('close', () => {
+    void transport.close();
+  });
 });
 
 app.listen(PORT);

@@ -43,5 +43,11 @@ pnpm start:todo-manager
 
 ## Environment variables
 
-Make sure to set the following environment variable before running the servers:
-- `MCP_AUTH_ISSUER`: The URL of your MCP Auth server
+### WhoAmI server
+
+- `MCP_AUTH_ISSUER`: The issuer URL of your authorization server (e.g., `https://your-tenant.logto.app/oidc`)
+
+### Todo manager server
+
+- `MCP_AUTH_ISSUER`: The issuer URL of your authorization server (e.g., `https://your-tenant.logto.app/oidc`)
+- `MCP_RESOURCE_IDENTIFIER`: The resource identifier for the protected resource (e.g., `https://todo.example.com/api/`). Note: The trailing slash is recommended due to an MCP SDK behavior that appends `/` when constructing resource indicators.
