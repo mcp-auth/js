@@ -9,7 +9,7 @@ That is exactly what mcp-auth does:
 1. **A token verifier** — `MCPAuth` implements the SDK's `OAuthTokenVerifier` interface. It discovers your provider's metadata, fetches its JWKS, and verifies JWT access tokens (signature, issuer, audience, expiration, and the claims MCP servers need), with sensible caching throughout. `mcpAuth.getBearerAuthOptions()` bundles the verifier with the RFC 9728 metadata URL into the SDK's `BearerAuthOptions`, ready for `requireBearerAuth`.
 2. **Your auth metadata** — `mcpAuth.getAuthMetadataOptions()` returns the SDK's `AuthMetadataOptions`, ready to serve the OAuth discovery documents.
 
-It implements the authorization requirements of the [current MCP specification (2025-11-25)](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) and works with any OAuth 2.0 / OpenID Connect provider that meets them. Check out the [MCP-compatible providers](https://mcp-auth.dev/docs/provider-list) list for real-time compatibility checks.
+It implements the authorization requirements of the [latest MCP specification](https://modelcontextprotocol.io/specification/latest/basic/authorization) and works with any OAuth 2.0 / OpenID Connect provider that meets them. Check out the [MCP-compatible providers](https://mcp-auth.dev/docs/provider-list) list for real-time compatibility checks.
 
 ## Installation
 

@@ -6,9 +6,9 @@
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/mcp-auth)](https://bundlephobia.com/package/mcp-auth)
 [![License](https://img.shields.io/npm/l/mcp-auth)](https://github.com/mcp-auth/js/blob/master/LICENSE)
 
-The MCP spec [requires OAuth 2.1 and other RFCs](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) for auth. Instead of spending weeks on them, use MCP Auth to connect to a trusted provider with a few lines of code.
+The MCP spec [requires OAuth 2.1 and other RFCs](https://modelcontextprotocol.io/specification/latest/basic/authorization) for auth. Instead of spending weeks on them, use MCP Auth to connect to a trusted provider with a few lines of code.
 
-mcp-auth targets the current MCP specification (2025-11-25) and the MCP TypeScript SDK v2, implementing the spec's authorization requirements — RFC 9728 Protected Resource Metadata and RFC 8707 audience-bound token validation — for any OAuth 2.0 / OpenID Connect provider.
+mcp-auth targets the latest MCP specification and the MCP TypeScript SDK v2, implementing the spec's authorization requirements — RFC 9728 Protected Resource Metadata and RFC 8707 audience-bound token validation — for any OAuth 2.0 / OpenID Connect provider.
 
 ## Get started
 
