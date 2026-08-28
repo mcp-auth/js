@@ -63,10 +63,10 @@ describe('integration with the MCP SDK bearer-auth helpers', () => {
       .setExpirationTime('1h')
       .sign(privateKey);
 
-    const authInfo = await verifyBearerToken(`Bearer ${token}`, {
-      verifier: mcpAuth,
-      requiredScopes: ['read'],
-    });
+    const authInfo = await verifyBearerToken(
+      `Bearer ${token}`,
+      mcpAuth.getBearerAuthOptions({ requiredScopes: ['read'] })
+    );
     expect(isMcpAuthInfo(authInfo)).toBe(true);
     expect(authInfo).toMatchObject({ clientId: '', scopes: ['read'] });
 

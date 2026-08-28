@@ -126,6 +126,27 @@ describe('MCPAuth resourceMetadataUrl', () => {
   });
 });
 
+describe('MCPAuth getBearerAuthOptions', () => {
+  it('should bundle the verifier and the resource metadata URL', () => {
+    const mcpAuth = new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } });
+    const options = mcpAuth.getBearerAuthOptions();
+
+    expect(options.verifier).toBe(mcpAuth);
+    expect(options.resourceMetadataUrl).toBe(mcpAuth.resourceMetadataUrl);
+    expect(options).not.toHaveProperty('requiredScopes');
+  });
+
+  it('should pass through the required scopes', () => {
+    const mcpAuth = new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } });
+
+    expect(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read', 'write'] })).toEqual({
+      verifier: mcpAuth,
+      resourceMetadataUrl: mcpAuth.resourceMetadataUrl,
+      requiredScopes: ['read', 'write'],
+    });
+  });
+});
+
 describe('MCPAuth getAuthMetadataOptions', () => {
   it('should return the metadata verbatim with the configured resource options', async () => {
     const mcpAuth = new MCPAuth({

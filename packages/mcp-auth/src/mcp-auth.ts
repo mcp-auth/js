@@ -3,6 +3,7 @@ import {
   OAuthError,
   OAuthErrorCode,
   type AuthMetadataOptions,
+  type BearerAuthOptions,
   type OAuthTokenVerifier,
 } from '@modelcontextprotocol/server';
 import {
@@ -134,11 +135,12 @@ const assertValidUrl = (value: string, name: string) => {
 
 /**
  * The main class of the mcp-auth library, providing the two inputs the MCP TypeScript SDK asks
- * you to bring when protecting an MCP server:
+ * you to bring when protecting an MCP server — one method each:
  *
  * 1. **A token verifier** — the instance itself implements the SDK's `OAuthTokenVerifier`
- *    interface, so it can be passed directly as the `verifier` to the SDK's `requireBearerAuth`
- *    (or any of its framework adapters).
+ *    interface, and {@link getBearerAuthOptions} bundles it with the resource metadata URL
+ *    into the SDK's `BearerAuthOptions`, ready to feed to `requireBearerAuth` (fetch-native or
+ *    any of its framework adapters).
  * 2. **Your auth metadata** — {@link getAuthMetadataOptions} returns the SDK's
  *    `AuthMetadataOptions`, ready to feed to `oauthMetadataResponse` (fetch-native) or
  *    `mcpAuthMetadataRouter` (from `@modelcontextprotocol/express`).
@@ -166,11 +168,7 @@ const assertValidUrl = (value: string, name: string) => {
  * });
  *
  * const handler = createMcpHandler(server);
- * const gate = requireBearerAuth({
- *   verifier: mcpAuth,
- *   requiredScopes: ['read:notes'],
- *   resourceMetadataUrl: mcpAuth.resourceMetadataUrl,
- * });
+ * const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] }));
  *
  * export default {
  *   async fetch(request: Request): Promise<Response> {
@@ -210,11 +208,7 @@ const assertValidUrl = (value: string, name: string) => {
  * app.use(mcpAuthMetadataRouter(await mcpAuth.getAuthMetadataOptions()));
  * app.post(
  *   '/mcp',
- *   requireBearerAuth({
- *     verifier: mcpAuth,
- *     requiredScopes: ['read:notes'],
- *     resourceMetadataUrl: mcpAuth.resourceMetadataUrl,
- *   }),
+ *   requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] })),
  *   async (request, response) => {
  *     const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
  *     await server.connect(transport);
@@ -283,6 +277,36 @@ export class MCPAuth implements OAuthTokenVerifier {
    */
   get resourceMetadataUrl(): string {
     return getOAuthProtectedResourceMetadataUrl(new URL(this.config.resource));
+  }
+
+  /**
+   * Builds the MCP SDK's `BearerAuthOptions` from this instance: the instance itself as the
+   * `verifier` and {@link resourceMetadataUrl} for the `WWW-Authenticate` challenge, plus the
+   * per-endpoint `requiredScopes` you pass in.
+   *
+   * Feed the result to `requireBearerAuth` — the fetch-native one from
+   * `@modelcontextprotocol/server` and the Express middleware from
+   * `@modelcontextprotocol/express` accept the same options type. Endpoints with different
+   * scope requirements call this method once each.
+   *
+   * @example
+   * ```ts
+   * // Fetch-native (Cloudflare Workers, Deno, Bun, Node.js)
+   * const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] }));
+   *
+   * // Express
+   * app.post('/mcp', requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] })), ...);
+   * ```
+   *
+   * @param options Per-endpoint bearer-auth requirements.
+   * @returns The SDK's `BearerAuthOptions`, ready to pass to `requireBearerAuth`.
+   */
+  getBearerAuthOptions(options?: Pick<BearerAuthOptions, 'requiredScopes'>): BearerAuthOptions {
+    return {
+      verifier: this,
+      resourceMetadataUrl: this.resourceMetadataUrl,
+      ...options,
+    };
   }
 
   /**

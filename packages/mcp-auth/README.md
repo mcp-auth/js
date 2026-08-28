@@ -6,8 +6,8 @@ The MCP TypeScript SDK v2 (`@modelcontextprotocol/server`) ships the entire HTTP
 
 That is exactly what mcp-auth does:
 
-1. **A token verifier** — `MCPAuth` implements the SDK's `OAuthTokenVerifier` interface. It discovers your provider's metadata, fetches its JWKS, and verifies JWT access tokens (signature, issuer, audience, expiration, and the claims MCP servers need), with sensible caching throughout.
-2. **Your auth metadata** — `mcpAuth.getAuthMetadataOptions()` returns the SDK's `AuthMetadataOptions`, ready to serve the OAuth discovery documents; `mcpAuth.resourceMetadataUrl` gives you the RFC 9728 metadata URL for `401` challenges.
+1. **A token verifier** — `MCPAuth` implements the SDK's `OAuthTokenVerifier` interface. It discovers your provider's metadata, fetches its JWKS, and verifies JWT access tokens (signature, issuer, audience, expiration, and the claims MCP servers need), with sensible caching throughout. `mcpAuth.getBearerAuthOptions()` bundles the verifier with the RFC 9728 metadata URL into the SDK's `BearerAuthOptions`, ready for `requireBearerAuth`.
+2. **Your auth metadata** — `mcpAuth.getAuthMetadataOptions()` returns the SDK's `AuthMetadataOptions`, ready to serve the OAuth discovery documents.
 
 It works with any provider that meets the MCP authorization requirements. Check out the [MCP-compatible providers](https://mcp-auth.dev/docs/provider-list) list for real-time compatibility checks.
 
@@ -46,11 +46,7 @@ server.registerTool('whoami', { description: 'Get the current user' }, (ctx) => 
 });
 
 const handler = createMcpHandler(server);
-const gate = requireBearerAuth({
-  verifier: mcpAuth,
-  requiredScopes: ['read:notes'],
-  resourceMetadataUrl: mcpAuth.resourceMetadataUrl,
-});
+const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] }));
 
 export default {
   async fetch(request: Request): Promise<Response> {
@@ -90,11 +86,7 @@ app.use(express.json());
 app.use(mcpAuthMetadataRouter(await mcpAuth.getAuthMetadataOptions()));
 app.post(
   '/mcp',
-  requireBearerAuth({
-    verifier: mcpAuth,
-    requiredScopes: ['read:notes'],
-    resourceMetadataUrl: mcpAuth.resourceMetadataUrl,
-  }),
+  requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] })),
   async (request, response) => {
     const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     await server.connect(transport);

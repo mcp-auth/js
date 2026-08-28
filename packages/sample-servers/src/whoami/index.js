@@ -65,7 +65,7 @@ app.use(mcpAuthMetadataRouter(await mcpAuth.getAuthMetadataOptions()));
 app.post(
   '/',
   // Require a valid Bearer token, verified by the `MCPAuth` instance
-  requireBearerAuth({ verifier: mcpAuth, resourceMetadataUrl: mcpAuth.resourceMetadataUrl }),
+  requireBearerAuth(mcpAuth.getBearerAuthOptions()),
   async (request, response) => {
     // In stateless mode, create a new instance of transport and server for each request
     // to ensure complete isolation. A single instance would cause request ID collisions
