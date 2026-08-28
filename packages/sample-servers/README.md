@@ -22,6 +22,10 @@ The minimal wiring: verify JWT access tokens with `MCPAuth`, serve the OAuth dis
 
 - `whoami`: Returns the authenticated user's token claims
 
+### WhoAmI on Express (Node.js)
+
+The same WhoAmI server on Node.js with Express — `src/whoami-express` reuses the Workers sample's `server.ts` verbatim and only swaps the wiring to `@modelcontextprotocol/express` + `toNodeHandler`, showing that the MCP server definition is runtime-agnostic.
+
 ### Todo manager
 
 Authorization with different permission scopes on top of the same wiring:
@@ -49,6 +53,6 @@ Authorization with different permission scopes on top of the same wiring:
    pnpm dev:todo-manager
    ```
 
-   The server listens on `http://localhost:8787`. Connect to it with an MCP client (e.g. the [MCP Inspector](https://github.com/modelcontextprotocol/inspector)) and complete the OAuth flow.
+   The server listens on `http://localhost:8787`. For the Express sample, copy `.env.example` to `.env` instead and run `pnpm dev:whoami-express` (listens on `http://localhost:3001`). Connect to it with an MCP client (e.g. the [MCP Inspector](https://github.com/modelcontextprotocol/inspector)) and complete the OAuth flow.
 
 To deploy to Cloudflare, set the two variables for the Worker and run `pnpm deploy:whoami` / `pnpm deploy:todo-manager`.

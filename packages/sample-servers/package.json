@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "dev:whoami": "wrangler dev --config wrangler.whoami.jsonc",
+    "dev:whoami-express": "tsx --env-file=.env src/whoami-express/index.ts",
     "dev:todo-manager": "wrangler dev --config wrangler.todo-manager.jsonc",
     "deploy:whoami": "wrangler deploy --config wrangler.whoami.jsonc",
     "deploy:todo-manager": "wrangler deploy --config wrangler.todo-manager.jsonc",
@@ -24,7 +25,10 @@
     "node": "^20.19.0 || ^22.0.0 || ^23.0.0 || ^24.0.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/express": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
+    "express": "5.0.1",
     "hono": "^4.11.4",
     "mcp-auth": "workspace:^",
     "zod": "^4.3.5"
@@ -32,8 +36,11 @@
   "devDependencies": {
     "@silverhand/eslint-config": "^6.0.1",
     "@silverhand/ts-config": "^6.0.0",
+    "@types/express": "^5.0.1",
+    "@types/node": "^20.17.0",
     "eslint": "^8.57.0",
     "prettier": "^3.5.3",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.3",
     "wrangler": "^4.0.0"
   },
