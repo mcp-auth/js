@@ -28,6 +28,12 @@ jobs:
 
       - name: Publish to npm
         working-directory: packages/mcp-auth
-        run: pnpm publish --provenance --no-git-checks
+        # Prerelease versions go to the `beta` dist-tag so `latest` keeps serving the stable line
+        run: |
+          if [[ "$(jq -r .version package.json)" == *-* ]]; then
+            pnpm publish --provenance --no-git-checks --tag beta
+          else
+            pnpm publish --provenance --no-git-checks
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
