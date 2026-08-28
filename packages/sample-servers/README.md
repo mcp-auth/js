@@ -43,11 +43,7 @@ pnpm start:todo-manager
 
 ## Environment variables
 
-### WhoAmI server
+Both servers require:
 
 - `MCP_AUTH_ISSUER`: The issuer URL of your authorization server (e.g., `https://your-tenant.logto.app/oidc`)
-
-### Todo manager server
-
-- `MCP_AUTH_ISSUER`: The issuer URL of your authorization server (e.g., `https://your-tenant.logto.app/oidc`)
-- `MCP_RESOURCE_IDENTIFIER`: The resource identifier for the protected resource (e.g., `https://todo.example.com/api/`). Note: The trailing slash is recommended due to an MCP SDK behavior that appends `/` when constructing resource indicators.
+- `MCP_RESOURCE_IDENTIFIER`: The resource identifier of the MCP server (e.g., `https://todo.example.com/api/`). Access tokens must carry it as their `aud` (audience) claim.
