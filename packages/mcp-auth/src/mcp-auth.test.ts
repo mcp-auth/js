@@ -27,31 +27,62 @@ afterEach(() => {
 describe('MCPAuth constructor', () => {
   it('should create an instance with a valid resolved config', () => {
     expect(
-      new MCPAuth({ resource, authorizationServer: { type: 'oidc', metadata: validMetadata } })
+      new MCPAuth({
+        protectedResourceMetadata: {
+          resource,
+          authorizationServer: { type: 'oidc', metadata: validMetadata },
+        },
+      })
     ).toBeInstanceOf(MCPAuth);
   });
 
   it('should create an instance with a valid discovery config', () => {
-    expect(new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } })).toBeInstanceOf(
-      MCPAuth
-    );
+    expect(
+      new MCPAuth({
+        protectedResourceMetadata: { resource, authorizationServer: { issuer, type: 'oidc' } },
+      })
+    ).toBeInstanceOf(MCPAuth);
   });
 
   it('should throw if the resource is missing or not a valid URL', () => {
     expect(
-      () => new MCPAuth({ resource: '', authorizationServer: { issuer, type: 'oidc' } })
+      () =>
+        new MCPAuth({
+          protectedResourceMetadata: {
+            resource: '',
+            authorizationServer: { issuer, type: 'oidc' },
+          },
+        })
     ).toThrowError(MCPAuthConfigError);
     expect(
-      () => new MCPAuth({ resource: 'not-a-url', authorizationServer: { issuer, type: 'oidc' } })
+      () =>
+        new MCPAuth({
+          protectedResourceMetadata: {
+            resource: 'not-a-url',
+            authorizationServer: { issuer, type: 'oidc' },
+          },
+        })
     ).toThrowError(MCPAuthConfigError);
   });
 
   it('should throw if the discovery issuer is missing or not a valid URL', () => {
     expect(
-      () => new MCPAuth({ resource, authorizationServer: { issuer: '', type: 'oidc' } })
+      () =>
+        new MCPAuth({
+          protectedResourceMetadata: {
+            resource,
+            authorizationServer: { issuer: '', type: 'oidc' },
+          },
+        })
     ).toThrowError(MCPAuthConfigError);
     expect(
-      () => new MCPAuth({ resource, authorizationServer: { issuer: 'not-a-url', type: 'oidc' } })
+      () =>
+        new MCPAuth({
+          protectedResourceMetadata: {
+            resource,
+            authorizationServer: { issuer: 'not-a-url', type: 'oidc' },
+          },
+        })
     ).toThrowError(MCPAuthConfigError);
   });
 
@@ -61,9 +92,10 @@ describe('MCPAuth constructor', () => {
     expect(
       () =>
         new MCPAuth({
-          resource,
-
-          authorizationServer: { type: 'oidc', metadata: rest as AuthServerMetadata },
+          protectedResourceMetadata: {
+            resource,
+            authorizationServer: { type: 'oidc', metadata: rest as AuthServerMetadata },
+          },
         })
     ).toThrowError(matchError('MCPAuthAuthServerError', 'invalid_server_metadata'));
   });
@@ -74,8 +106,10 @@ describe('MCPAuth constructor', () => {
     expect(
       () =>
         new MCPAuth({
-          resource,
-          authorizationServer: { type: 'oidc', metadata: { ...rest } },
+          protectedResourceMetadata: {
+            resource,
+            authorizationServer: { type: 'oidc', metadata: { ...rest } },
+          },
         })
     ).toThrowError(matchError('MCPAuthAuthServerError', 'invalid_server_config'));
   });
@@ -84,22 +118,20 @@ describe('MCPAuth constructor', () => {
     expect(
       () =>
         new MCPAuth({
-          resource,
-          authorizationServer: { issuer, type: 'oidc' },
-          serviceDocumentationUrl: 'not-a-url',
+          protectedResourceMetadata: {
+            resource,
+            authorizationServer: { issuer, type: 'oidc' },
+            serviceDocumentationUrl: 'not-a-url',
+          },
         })
-    ).toThrowError(MCPAuthConfigError);
-  });
-
-  it('should throw if the `audience` is an empty string', () => {
-    expect(
-      () => new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' }, audience: '' })
     ).toThrowError(MCPAuthConfigError);
   });
 
   it('should not fetch metadata for a discovery config until it is needed', () => {
     const wellKnown = nock(issuer).get('/.well-known/openid-configuration').reply(200, {});
-    void new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } });
+    void new MCPAuth({
+      protectedResourceMetadata: { resource, authorizationServer: { issuer, type: 'oidc' } },
+    });
 
     expect(wellKnown.isDone()).toBe(false);
   });
@@ -107,7 +139,9 @@ describe('MCPAuth constructor', () => {
 
 describe('MCPAuth resourceMetadataUrl', () => {
   it('should build the RFC 9728 metadata URL with the resource path', () => {
-    const mcpAuth = new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } });
+    const mcpAuth = new MCPAuth({
+      protectedResourceMetadata: { resource, authorizationServer: { issuer, type: 'oidc' } },
+    });
 
     expect(mcpAuth.resourceMetadataUrl).toBe(
       'https://api.example.com/.well-known/oauth-protected-resource/mcp'
@@ -116,8 +150,10 @@ describe('MCPAuth resourceMetadataUrl', () => {
 
   it('should build the RFC 9728 metadata URL for a resource without a path', () => {
     const mcpAuth = new MCPAuth({
-      resource: 'https://api.example.com',
-      authorizationServer: { issuer, type: 'oidc' },
+      protectedResourceMetadata: {
+        resource: 'https://api.example.com',
+        authorizationServer: { issuer, type: 'oidc' },
+      },
     });
 
     expect(mcpAuth.resourceMetadataUrl).toBe(
@@ -128,7 +164,9 @@ describe('MCPAuth resourceMetadataUrl', () => {
 
 describe('MCPAuth getBearerAuthOptions', () => {
   it('should bundle the verifier and the resource metadata URL', () => {
-    const mcpAuth = new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } });
+    const mcpAuth = new MCPAuth({
+      protectedResourceMetadata: { resource, authorizationServer: { issuer, type: 'oidc' } },
+    });
     const options = mcpAuth.getBearerAuthOptions();
 
     expect(options.verifier).toBe(mcpAuth);
@@ -137,7 +175,9 @@ describe('MCPAuth getBearerAuthOptions', () => {
   });
 
   it('should pass through the required scopes', () => {
-    const mcpAuth = new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } });
+    const mcpAuth = new MCPAuth({
+      protectedResourceMetadata: { resource, authorizationServer: { issuer, type: 'oidc' } },
+    });
 
     expect(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read', 'write'] })).toEqual({
       verifier: mcpAuth,
@@ -150,11 +190,13 @@ describe('MCPAuth getBearerAuthOptions', () => {
 describe('MCPAuth getAuthMetadataOptions', () => {
   it('should return the metadata verbatim with the configured resource options', async () => {
     const mcpAuth = new MCPAuth({
-      resource,
-      authorizationServer: { type: 'oidc', metadata: validMetadata },
-      scopesSupported: ['read:notes', 'write:notes'],
-      resourceName: 'Notes API',
-      serviceDocumentationUrl: 'https://docs.example.com',
+      protectedResourceMetadata: {
+        resource,
+        authorizationServer: { type: 'oidc', metadata: validMetadata },
+        scopesSupported: ['read:notes', 'write:notes'],
+        resourceName: 'Notes API',
+        serviceDocumentationUrl: 'https://docs.example.com',
+      },
     });
 
     await expect(mcpAuth.getAuthMetadataOptions()).resolves.toEqual({
@@ -168,8 +210,10 @@ describe('MCPAuth getAuthMetadataOptions', () => {
 
   it('should omit optional fields that are not configured', async () => {
     const mcpAuth = new MCPAuth({
-      resource,
-      authorizationServer: { type: 'oidc', metadata: validMetadata },
+      protectedResourceMetadata: {
+        resource,
+        authorizationServer: { type: 'oidc', metadata: validMetadata },
+      },
     });
     const options = await mcpAuth.getAuthMetadataOptions();
 
@@ -181,7 +225,9 @@ describe('MCPAuth getAuthMetadataOptions', () => {
     const wellKnown = nock(issuer)
       .get('/.well-known/openid-configuration')
       .reply(200, validMetadata);
-    const mcpAuth = new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } });
+    const mcpAuth = new MCPAuth({
+      protectedResourceMetadata: { resource, authorizationServer: { issuer, type: 'oidc' } },
+    });
 
     await expect(mcpAuth.getAuthMetadataOptions()).resolves.toEqual({
       oauthMetadata: validMetadata,

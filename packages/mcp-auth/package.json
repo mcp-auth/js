@@ -57,7 +57,7 @@
     "vitest": "^3.1.1"
   },
   "dependencies": {
-    "jose": "^6.0.10"
+    "jose": "^6.2.10"
   },
   "peerDependencies": {
     "@modelcontextprotocol/server": "^2.0.0"

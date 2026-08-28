@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, type JWTVerifyGetKey, type RemoteJWKSetOptions } from 'jose';
+import { createRemoteJWKSet, type JWTVerifyGetKey } from 'jose';
 
 import { MCPAuthAuthServerError } from './errors.js';
 import { fetchServerConfig } from './fetch-server-config.js';
@@ -21,10 +21,7 @@ export class AuthServerContext {
   #metadata?: Promise<AuthServerMetadata>;
   #jwks?: JWTVerifyGetKey;
 
-  constructor(
-    private readonly config: AuthServerConfig,
-    private readonly remoteJwkSetOptions?: RemoteJWKSetOptions
-  ) {}
+  constructor(private readonly config: AuthServerConfig) {}
 
   /**
    * The issuer identifier of the trusted authorization server, available without fetching the
@@ -59,7 +56,7 @@ export class AuthServerContext {
       });
     }
 
-    this.#jwks ??= createRemoteJWKSet(new URL(jwksUri), this.remoteJwkSetOptions);
+    this.#jwks ??= createRemoteJWKSet(new URL(jwksUri));
     return this.#jwks;
   }
 

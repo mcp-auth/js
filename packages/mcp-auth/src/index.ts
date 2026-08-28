@@ -25,7 +25,7 @@ export {
   serverMetadataPaths,
   type ServerMetadataConfig,
 } from './fetch-server-config.js';
-export { MCPAuth, type MCPAuthConfig } from './mcp-auth.js';
+export { MCPAuth, type MCPAuthConfig, type ProtectedResourceMetadataConfig } from './mcp-auth.js';
 export {
   type AuthServerConfig,
   type AuthServerDiscoveryConfig,

@@ -15,8 +15,10 @@ export type HonoEnv = { Variables: { authInfo: AuthInfo } };
  * allow network calls during module initialization.
  */
 const mcpAuth = new MCPAuth({
-  resource: env.MCP_RESOURCE_IDENTIFIER,
-  authorizationServer: { issuer: env.MCP_AUTH_ISSUER, type: 'oidc' },
+  protectedResourceMetadata: {
+    resource: env.MCP_RESOURCE_IDENTIFIER,
+    authorizationServer: { issuer: env.MCP_AUTH_ISSUER, type: 'oidc' },
+  },
 });
 
 const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions());

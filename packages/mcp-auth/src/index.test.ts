@@ -53,8 +53,10 @@ describe('integration with the MCP SDK bearer-auth helpers', () => {
       .reply(200, { keys: [await exportJWK(publicKey)] });
 
     const mcpAuth = new MCPAuth({
-      resource,
-      authorizationServer: { type: 'oidc', metadata },
+      protectedResourceMetadata: {
+        resource,
+        authorizationServer: { type: 'oidc', metadata },
+      },
     });
 
     const token = await new SignJWT({ iss: issuer, sub: 'user-1', aud: resource, scope: 'read' })

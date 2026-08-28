@@ -68,8 +68,10 @@ export type ResolvedAuthServerConfig = {
  * @example
  * ```ts
  * const mcpAuth = new MCPAuth({
- *   resource: 'https://api.example.com/mcp',
- *   authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
+ *   protectedResourceMetadata: {
+ *     resource: 'https://api.example.com/mcp',
+ *     authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
+ *   },
  * });
  * ```
  */

@@ -63,8 +63,7 @@ const oneHourFromNow = () => Math.floor(Date.now() / 1000) + 3600;
 
 const createMcpAuth = (configOverrides: Partial<ConstructorParameters<typeof MCPAuth>[0]> = {}) =>
   new MCPAuth({
-    resource,
-    authorizationServer: { type: 'oidc', metadata },
+    protectedResourceMetadata: { resource, authorizationServer: { type: 'oidc', metadata } },
     ...configOverrides,
   });
 
@@ -119,7 +118,9 @@ describe('MCPAuth verifyAccessToken (pre-checks)', () => {
   it('should reject a token from an untrusted issuer before fetching metadata or JWKS', async () => {
     const wellKnown = nock(issuer).get('/.well-known/openid-configuration').reply(200, metadata);
     const jwks = mockJwks();
-    const mcpAuth = new MCPAuth({ resource, authorizationServer: { issuer, type: 'oidc' } });
+    const mcpAuth = new MCPAuth({
+      protectedResourceMetadata: { resource, authorizationServer: { issuer, type: 'oidc' } },
+    });
     const token = await createToken(
       { iss: 'https://evil.example.com', sub: 'user-1', aud: resource },
       { expiresAt: oneHourFromNow() }
@@ -261,34 +262,19 @@ describe('MCPAuth verifyAccessToken (audience validation)', () => {
     await expect(mcpAuth.verifyAccessToken(token)).resolves.toHaveProperty('subject', 'user-1');
   });
 
-  it('should validate against a custom `audience` when configured', async () => {
-    mockJwks(2);
-    const audience = 'https://custom-audience.example.com';
-    const mcpAuth = createMcpAuth({ audience });
-
-    const matching = await createToken(
-      { iss: issuer, sub: 'user-1', aud: audience },
-      { expiresAt: oneHourFromNow() }
-    );
-    await expect(mcpAuth.verifyAccessToken(matching)).resolves.toBeTruthy();
-
-    const mismatching = await createToken(
-      { iss: issuer, sub: 'user-1', aud: resource },
-      { expiresAt: oneHourFromNow() }
-    );
-    await expectOAuthError(
-      mcpAuth.verifyAccessToken(mismatching),
-      'ERR_JWT_CLAIM_VALIDATION_FAILED'
-    );
-  });
-
-  it('should not allow disabling audience validation via `jwtVerify` overrides', async () => {
+  it('should not allow overriding the audience via `jwtVerifyOptions`', async () => {
     mockJwks();
     /*
-     * Audience validation is always on: the `audience` option set through the jose overrides is
-     * ignored in favor of the configured (or default) audience.
+     * Audience validation always expects the `resource` identifier (RFC 8707). The `audience`
+     * option is excluded from `jwtVerifyOptions` at the type level; prove the runtime guard
+     * holds even when the types are bypassed.
      */
-    const mcpAuth = createMcpAuth({ jwtVerify: { audience: 'https://evil.example.com' } });
+    const mcpAuth = createMcpAuth({
+      jwtVerifyOptions: {
+        // @ts-expect-error -- deliberately bypass the types to prove the runtime guard
+        audience: 'https://evil.example.com',
+      },
+    });
     const token = await createToken(
       { iss: issuer, sub: 'user-1', aud: 'https://evil.example.com' },
       { expiresAt: oneHourFromNow() }
@@ -336,9 +322,9 @@ describe('MCPAuth verifyAccessToken (claim mapping)', () => {
 });
 
 describe('MCPAuth verifyAccessToken (jose overrides)', () => {
-  it('should apply custom `jwtVerify` options', async () => {
+  it('should apply custom `jwtVerifyOptions`', async () => {
     mockJwks();
-    const mcpAuth = createMcpAuth({ jwtVerify: { requiredClaims: ['custom_claim'] } });
+    const mcpAuth = createMcpAuth({ jwtVerifyOptions: { requiredClaims: ['custom_claim'] } });
     const token = await createToken(
       { iss: issuer, sub: 'user-1', aud: resource },
       { expiresAt: oneHourFromNow() }
@@ -347,9 +333,14 @@ describe('MCPAuth verifyAccessToken (jose overrides)', () => {
     await expectOAuthError(mcpAuth.verifyAccessToken(token), 'ERR_JWT_CLAIM_VALIDATION_FAILED');
   });
 
-  it('should not allow overriding the `issuer` option', async () => {
+  it('should not allow overriding the issuer via `jwtVerifyOptions`', async () => {
     mockJwks();
-    const mcpAuth = createMcpAuth({ jwtVerify: { issuer: 'https://evil.example.com' } });
+    const mcpAuth = createMcpAuth({
+      jwtVerifyOptions: {
+        // @ts-expect-error -- deliberately bypass the types to prove the runtime guard
+        issuer: 'https://evil.example.com',
+      },
+    });
     const token = await createToken(
       { iss: issuer, sub: 'user-1', aud: resource },
       { expiresAt: oneHourFromNow() }
@@ -361,8 +352,7 @@ describe('MCPAuth verifyAccessToken (jose overrides)', () => {
 
 describe('MCPAuth verifyAccessToken (discovery)', () => {
   const discoveryConfig = Object.freeze({
-    resource,
-    authorizationServer: { issuer, type: 'oidc' },
+    protectedResourceMetadata: { resource, authorizationServer: { issuer, type: 'oidc' } },
   } as const);
 
   it('should fetch the metadata once and verify tokens', async () => {

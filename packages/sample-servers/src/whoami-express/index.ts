@@ -29,8 +29,10 @@ if (!MCP_RESOURCE_IDENTIFIER) {
 }
 
 const mcpAuth = new MCPAuth({
-  resource: MCP_RESOURCE_IDENTIFIER,
-  authorizationServer: { issuer: MCP_AUTH_ISSUER, type: 'oidc' },
+  protectedResourceMetadata: {
+    resource: MCP_RESOURCE_IDENTIFIER,
+    authorizationServer: { issuer: MCP_AUTH_ISSUER, type: 'oidc' },
+  },
 });
 
 const mcpNodeHandler = toNodeHandler(createMcpHandler(createMcpServer));

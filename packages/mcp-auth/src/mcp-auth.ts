@@ -12,7 +12,6 @@ import {
   type JWTPayload,
   type JWTVerifyGetKey,
   type JWTVerifyOptions,
-  type RemoteJWKSetOptions,
 } from 'jose';
 import { JOSEError } from 'jose/errors';
 
@@ -23,65 +22,69 @@ import { type AuthServerConfig } from './types.js';
 import { parseAuthServerMetadata, validateResolvedMetadata } from './validate-auth-server.js';
 
 /**
- * Config for the {@link MCPAuth} class. One instance protects one resource and trusts one
- * authorization server.
+ * The RFC 9728 Protected Resource Metadata declaration of this MCP server: its identity
+ * (`resource`), the authorization server it trusts, and the optional advertised fields.
+ *
+ * Everything in this declaration is published through the SDK's metadata helpers (via
+ * {@link MCPAuth.getAuthMetadataOptions}), and the token verifier enforces what is declared:
+ * the `aud` claim of access tokens must match `resource`, and the `iss` claim must match the
+ * configured authorization server — what is advertised is what is enforced.
  */
-export type MCPAuthConfig = {
+export type ProtectedResourceMetadataConfig = {
   /**
    * The resource identifier of this MCP server (RFC 8707), e.g. `https://api.example.com/mcp`.
    *
-   * It is used as the `resource` value in the Protected Resource Metadata document, as the
-   * default expected `aud` (audience) claim of access tokens, and to build
+   * It is published as the `resource` value of the Protected Resource Metadata document, used
+   * as the expected `aud` (audience) claim of access tokens, and used to build
    * {@link MCPAuth.resourceMetadataUrl}.
    */
   resource: string;
   /**
-   * The authorization server trusted by this MCP server. Either a discovery config
-   * (`{ issuer, type }`, metadata fetched lazily on first use) or a resolved config with
+   * The authorization server trusted by this MCP server, published as the single entry of
+   * `authorization_servers` in the Protected Resource Metadata document. Either a discovery
+   * config (`{ issuer, type }`, metadata fetched lazily on first use) or a resolved config with
    * metadata — hardcoded or pre-fetched via {@link fetchServerConfig}.
    *
    * @see {@link AuthServerConfig} for the two variants.
    */
   authorizationServer: AuthServerConfig;
   /**
-   * The scopes this MCP server understands, advertised as `scopes_supported` in the Protected
-   * Resource Metadata document.
+   * The scopes this MCP server understands, advertised as `scopes_supported`.
    */
   scopesSupported?: string[];
   /**
-   * A human-readable name for this MCP server, advertised as `resource_name` in the Protected
-   * Resource Metadata document.
+   * A human-readable name for this MCP server, advertised as `resource_name`.
    */
   resourceName?: string;
   /**
-   * A documentation URL for this MCP server, advertised as `resource_documentation` in the
-   * Protected Resource Metadata document.
+   * A documentation URL for this MCP server, advertised as `resource_documentation`.
    */
   serviceDocumentationUrl?: string;
+};
+
+/**
+ * Config for the {@link MCPAuth} class. One instance protects one resource and trusts one
+ * authorization server.
+ */
+export type MCPAuthConfig = {
   /**
-   * The expected `aud` (audience) claim of access tokens. Defaults to {@link resource}.
+   * The Protected Resource Metadata declaration (RFC 9728) of this MCP server, published
+   * through the SDK's metadata helpers and enforced by the token verifier.
    *
-   * Audience validation is always performed and cannot be disabled: the MCP authorization
-   * specification requires access tokens to be bound to the resource they are issued for
-   * (RFC 8707), and accepting unbound tokens would let a token issued for a different resource
-   * of the same authorization server be replayed against this MCP server.
+   * @see {@link ProtectedResourceMetadataConfig}
    */
-  audience?: string;
+  protectedResourceMetadata: ProtectedResourceMetadataConfig;
   /**
    * Per-call options passed to the underlying `jose.jwtVerify` function, e.g. `clockTolerance`
-   * or `requiredClaims`. The `issuer` and `audience` options are always set by mcp-auth and
-   * cannot be overridden here.
+   * or `requiredClaims`. The `issuer` and `audience` options are derived from
+   * {@link protectedResourceMetadata} and cannot be set here: the MCP authorization
+   * specification requires access tokens to be bound to this server's `resource` identifier
+   * (RFC 8707), and accepting unbound tokens would let a token issued for a different resource
+   * of the same authorization server be replayed against this MCP server.
    *
    * @see {@link JWTVerifyOptions}
    */
-  jwtVerify?: JWTVerifyOptions;
-  /**
-   * Options passed to the underlying `jose.createRemoteJWKSet` function, e.g. `cacheMaxAge` or
-   * custom headers for the JWKS request.
-   *
-   * @see {@link RemoteJWKSetOptions}
-   */
-  remoteJwkSet?: RemoteJWKSetOptions;
+  jwtVerifyOptions?: Omit<JWTVerifyOptions, 'issuer' | 'audience'>;
 };
 
 const getScopes = (value: unknown): string[] | undefined => {
@@ -156,9 +159,11 @@ const assertValidUrl = (value: string, name: string) => {
  * import { getAuthInfo, MCPAuth } from 'mcp-auth';
  *
  * const mcpAuth = new MCPAuth({
- *   resource: 'https://api.example.com/mcp',
- *   authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
- *   scopesSupported: ['read:notes'],
+ *   protectedResourceMetadata: {
+ *     resource: 'https://api.example.com/mcp',
+ *     authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
+ *     scopesSupported: ['read:notes'],
+ *   },
  * });
  *
  * const createServer = () => {
@@ -204,9 +209,11 @@ const assertValidUrl = (value: string, name: string) => {
  * import { MCPAuth } from 'mcp-auth';
  *
  * const mcpAuth = new MCPAuth({
- *   resource: 'https://api.example.com/mcp',
- *   authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
- *   scopesSupported: ['read:notes'],
+ *   protectedResourceMetadata: {
+ *     resource: 'https://api.example.com/mcp',
+ *     authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
+ *     scopesSupported: ['read:notes'],
+ *   },
  * });
  *
  * const app = express();
@@ -237,7 +244,8 @@ export class MCPAuth implements OAuthTokenVerifier {
    * or does not satisfy the MCP authorization specification.
    */
   constructor(public readonly config: MCPAuthConfig) {
-    const { resource, authorizationServer, serviceDocumentationUrl, audience } = config;
+    const { resource, authorizationServer, serviceDocumentationUrl } =
+      config.protectedResourceMetadata;
 
     if (!resource) {
       throw new MCPAuthConfigError('invalid_config', 'A `resource` identifier is required.');
@@ -260,29 +268,30 @@ export class MCPAuth implements OAuthTokenVerifier {
       assertValidUrl(serviceDocumentationUrl, 'serviceDocumentationUrl');
     }
 
-    if (audience !== undefined && !audience) {
-      throw new MCPAuthConfigError('invalid_config', 'The `audience` must be a non-empty string.');
-    }
-
-    this.#authServer = new AuthServerContext(authorizationServer, config.remoteJwkSet);
+    this.#authServer = new AuthServerContext(authorizationServer);
   }
 
   /**
-   * The RFC 9728 Protected Resource Metadata URL for the configured {@link MCPAuthConfig.resource},
-   * built with the MCP SDK's `getOAuthProtectedResourceMetadataUrl`.
+   * The RFC 9728 Protected Resource Metadata URL for the configured
+   * {@link ProtectedResourceMetadataConfig.resource}, built with the MCP SDK's
+   * `getOAuthProtectedResourceMetadataUrl`.
    *
    * Pass it as the `resourceMetadataUrl` option of the SDK's `requireBearerAuth` so the
    * `WWW-Authenticate` challenge on `401` responses points clients at the metadata document.
    *
    * @example
    * ```ts
-   * const mcpAuth = new MCPAuth({ resource: 'https://api.example.com/mcp', ... });
+   * const mcpAuth = new MCPAuth({
+   *   protectedResourceMetadata: { resource: 'https://api.example.com/mcp', ... },
+   * });
    * mcpAuth.resourceMetadataUrl
    * // → 'https://api.example.com/.well-known/oauth-protected-resource/mcp'
    * ```
    */
   get resourceMetadataUrl(): string {
-    return getOAuthProtectedResourceMetadataUrl(new URL(this.config.resource));
+    return getOAuthProtectedResourceMetadataUrl(
+      new URL(this.config.protectedResourceMetadata.resource)
+    );
   }
 
   /**
@@ -329,7 +338,8 @@ export class MCPAuth implements OAuthTokenVerifier {
    * MCP authorization specification.
    */
   async getAuthMetadataOptions(): Promise<AuthMetadataOptions> {
-    const { resource, scopesSupported, resourceName, serviceDocumentationUrl } = this.config;
+    const { resource, scopesSupported, resourceName, serviceDocumentationUrl } =
+      this.config.protectedResourceMetadata;
     const oauthMetadata = await this.#authServer.getMetadata();
 
     return {
@@ -356,9 +366,10 @@ export class MCPAuth implements OAuthTokenVerifier {
    * 1. Decodes the token (without verifying) and rejects it unless its `iss` claim matches the
    *    trusted issuer — before any metadata or JWKS request is made.
    * 2. Resolves the authorization server metadata and JWK Set (both cached across calls).
-   * 3. Verifies the token signature and the `iss` and `aud` claims (against
-   *    {@link MCPAuthConfig.audience}, defaulting to the `resource` identifier), plus standard
-   *    time claims, via `jose.jwtVerify`.
+   * 3. Verifies the token signature and the `iss` and `aud` claims (the `aud` claim must match
+   *    the {@link ProtectedResourceMetadataConfig.resource} identifier, per the RFC 8707
+   *    audience binding the MCP authorization specification requires), plus standard time
+   *    claims, via `jose.jwtVerify`.
    * 4. Requires a non-empty `sub` claim (per RFC 9068) and maps the payload to
    *    {@link McpAuthInfo}: `clientId` from `client_id` (falling back to `azp`), `scopes` from
    *    `scope` (space-separated) or `scopes` (array), and `expiresAt` from `exp`.
@@ -427,13 +438,18 @@ export class MCPAuth implements OAuthTokenVerifier {
   }
 
   async #verifyJwt(token: string, jwks: JWTVerifyGetKey, issuer: string): Promise<JWTPayload> {
-    const { audience = this.config.resource, jwtVerify: jwtVerifyOptions } = this.config;
+    const { protectedResourceMetadata, jwtVerifyOptions } = this.config;
 
     try {
+      /*
+       * The `issuer` and `audience` options are set after the spread so they can never be
+       * overridden: the MCP authorization specification requires the token audience to be
+       * this server's `resource` identifier (RFC 8707).
+       */
       const { payload } = await jwtVerify(token, jwks, {
         ...jwtVerifyOptions,
         issuer,
-        audience,
+        audience: protectedResourceMetadata.resource,
       });
       return payload;
     } catch (error) {

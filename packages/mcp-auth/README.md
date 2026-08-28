@@ -33,9 +33,11 @@ import {
 import { getAuthInfo, MCPAuth } from 'mcp-auth';
 
 const mcpAuth = new MCPAuth({
-  resource: 'https://api.example.com/mcp',
-  authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
-  scopesSupported: ['read:notes'],
+  protectedResourceMetadata: {
+    resource: 'https://api.example.com/mcp',
+    authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
+    scopesSupported: ['read:notes'],
+  },
 });
 
 const createServer = () => {
@@ -81,9 +83,11 @@ import express from 'express';
 import { MCPAuth } from 'mcp-auth';
 
 const mcpAuth = new MCPAuth({
-  resource: 'https://api.example.com/mcp',
-  authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
-  scopesSupported: ['read:notes'],
+  protectedResourceMetadata: {
+    resource: 'https://api.example.com/mcp',
+    authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
+    scopesSupported: ['read:notes'],
+  },
 });
 
 const app = express();
@@ -104,9 +108,10 @@ See [the documentation](https://mcp-auth.dev) for the full guide, and the [sampl
 
 ## Configuration highlights
 
+- `protectedResourceMetadata` is your RFC 9728 Protected Resource Metadata declaration: everything in it is published through the SDK's metadata helpers, and the token verifier enforces what it declares — the `aud` claim must match `resource`, the `iss` claim must match the configured authorization server.
 - `authorizationServer` accepts a discovery config (`{ issuer, type }`, metadata fetched lazily and cached — safe for edge runtimes where module-init network calls are not allowed) or a resolved config with metadata (hardcoded or pre-fetched via `fetchServerConfig()`).
-- Audience (`aud`) validation is always on, expecting your `resource` identifier (set `audience` when your provider mints a different audience value). The MCP authorization specification requires access tokens to be bound to the resource they are issued for (RFC 8707), so tokens without a matching `aud` claim are rejected.
-- `jwtVerify` / `remoteJwkSet` pass options through to [jose](https://github.com/panva/jose) for advanced tuning (clock tolerance, JWKS cache ages, etc.).
+- Audience (`aud`) validation always expects your `resource` identifier and cannot be redirected or disabled: the MCP authorization specification requires access tokens to be bound to the resource they are issued for (RFC 8707), so tokens without a matching `aud` claim are rejected.
+- `jwtVerifyOptions` passes options through to [jose](https://github.com/panva/jose)'s `jwtVerify` for advanced tuning (clock tolerance, required claims, etc.); `issuer` and `audience` are excluded — they always come from the metadata declaration.
 - Verified tokens are surfaced as `McpAuthInfo` — the SDK's `AuthInfo` plus guaranteed `issuer`, `subject`, and the full `claims` payload.
 
 ## Join the discussion
