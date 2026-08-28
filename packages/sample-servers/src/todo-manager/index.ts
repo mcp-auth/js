@@ -12,15 +12,11 @@ import {
   requireBearerAuth,
   type CallToolResult,
 } from '@modelcontextprotocol/server';
+import { env } from 'cloudflare:workers';
 import { getAuthInfo, MCPAuth } from 'mcp-auth';
 import { z } from 'zod';
 
 import { TodoService } from './todo-service.js';
-
-type Env = {
-  MCP_AUTH_ISSUER: string;
-  MCP_RESOURCE_IDENTIFIER: string;
-};
 
 /**
  * TodoService is shared across requests within a Worker isolate so the sample can demonstrate
@@ -128,29 +124,21 @@ const createMcpServer = () => {
 
 const handler = createMcpHandler(createMcpServer);
 
-/* eslint-disable @silverhand/fp/no-let, @silverhand/fp/no-mutation -- lazy per-isolate singleton */
-let mcpAuth: MCPAuth | undefined;
-
-/**
- * Configuration comes from Worker bindings (`env`), which are only available per request, so
- * the `MCPAuth` instance is created lazily on first use. The discovery config defers the
- * metadata fetching the same way — Workers do not allow network calls during module
- * initialization.
+/*
+ * Creating the MCPAuth instance performs no I/O, so it is safe at module scope. The
+ * authorization server metadata is fetched lazily within request handling — Workers do not
+ * allow network calls during module initialization.
  */
-const getMcpAuth = (env: Env): MCPAuth => {
-  mcpAuth ??= new MCPAuth({
-    resource: env.MCP_RESOURCE_IDENTIFIER,
-    authorizationServer: { issuer: env.MCP_AUTH_ISSUER, type: 'oidc' },
-    scopesSupported: ['create:todos', 'read:todos', 'delete:todos'],
-  });
-  return mcpAuth;
-};
-/* eslint-enable @silverhand/fp/no-let, @silverhand/fp/no-mutation */
+const mcpAuth = new MCPAuth({
+  resource: env.MCP_RESOURCE_IDENTIFIER,
+  authorizationServer: { issuer: env.MCP_AUTH_ISSUER, type: 'oidc' },
+  scopesSupported: ['create:todos', 'read:todos', 'delete:todos'],
+});
+
+const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions());
 
 const worker = {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const mcpAuth = getMcpAuth(env);
-
+  async fetch(request: Request): Promise<Response> {
     /*
      * Serve the OAuth discovery documents. The path guard keeps the (lazily fetched) metadata
      * resolution off the request path of regular MCP traffic.
@@ -166,7 +154,6 @@ const worker = {
     }
 
     // Require a valid Bearer token, verified by the `MCPAuth` instance, for everything else
-    const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions());
     const auth = await gate(request);
     if (auth instanceof Response) {
       return auth;
