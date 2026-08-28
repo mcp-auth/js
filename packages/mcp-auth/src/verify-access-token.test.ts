@@ -204,6 +204,18 @@ describe('MCPAuth verifyAccessToken (JWT verification)', () => {
     expect(expiresAt).toBeUndefined();
   });
 
+  it('should surface non-JOSE verification errors with a generic message', async () => {
+    /* No JWKS endpoint is mocked, so the JWKS fetch fails with a (non-JOSE) network error. */
+    nock.disableNetConnect();
+    const mcpAuth = createMcpAuth();
+
+    await expectOAuthError(
+      mcpAuth.verifyAccessToken(await createValidToken()),
+      'Failed to verify the access token.'
+    );
+    nock.enableNetConnect();
+  });
+
   it('should reuse the remote JWK Set instance across verifications', async () => {
     // A single JWKS response is mocked; a second HTTP request would fail.
     mockJwks();
