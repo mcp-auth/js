@@ -1,6 +1,16 @@
 # MCP Auth sample servers
 
-Sample MCP servers demonstrating [mcp-auth](https://github.com/mcp-auth/js/tree/master/packages/mcp-auth) with the fetch-native MCP TypeScript SDK v2, built as Cloudflare Workers and runnable locally with `wrangler dev` — no Cloudflare account needed for local development.
+Sample MCP servers demonstrating [mcp-auth](https://github.com/mcp-auth/js/tree/master/packages/mcp-auth) with the fetch-native MCP TypeScript SDK v2, built as Cloudflare Workers with [Hono](https://hono.dev) and runnable locally with `wrangler dev` — no Cloudflare account needed for local development.
+
+Each sample separates the MCP server from the auth wiring, so the two concerns can be read (and taught) independently:
+
+```
+src/<sample>/
+  server.ts   The MCP server definition: tools reading the verified identity via `getAuthInfo`
+  auth.ts     The mcp-auth wiring: the `MCPAuth` instance and two Hono middlewares
+              (`oauthDiscovery` for the well-known documents, `bearerAuth` for token verification)
+  index.ts    The Hono app composing them
+```
 
 See [the documentation](https://mcp-auth.dev/docs) for the full guide.
 

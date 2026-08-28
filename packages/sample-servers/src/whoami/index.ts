@@ -1,83 +1,27 @@
 /**
- * The WhoAmI MCP server, built as a Cloudflare Worker.
+ * The WhoAmI MCP server, built as a Cloudflare Worker with Hono.
  *
  * It demonstrates the minimal mcp-auth wiring: verify JWT access tokens with `MCPAuth`, serve
  * the OAuth discovery documents, and read the verified identity in a tool with `getAuthInfo`.
  *
+ * @see {@link file://./server.ts} for the MCP server definition (tools).
+ * @see {@link file://./auth.ts} for the auth wiring (verifier + middlewares).
  * @see {@link https://mcp-auth.dev/docs/tutorials/whoami Tutorial} for the full tutorial.
  */
 
-import {
-  createMcpHandler,
-  McpServer,
-  oauthMetadataResponse,
-  requireBearerAuth,
-} from '@modelcontextprotocol/server';
-import { env } from 'cloudflare:workers';
-import { getAuthInfo, MCPAuth } from 'mcp-auth';
+import { createMcpHandler } from '@modelcontextprotocol/server';
+import { Hono } from 'hono';
 
-// The factory creates a fresh MCP server instance per request, keeping requests isolated
-const createMcpServer = () => {
-  const mcpServer = new McpServer({
-    name: 'WhoAmI',
-    version: '0.0.0',
-  });
-
-  // Add a tool to the server that returns the current user's information
-  mcpServer.registerTool(
-    'whoami',
-    {
-      description: 'Get the current user information',
-    },
-    (context) => {
-      const { claims } = getAuthInfo(context);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(claims) }],
-      };
-    }
-  );
-
-  return mcpServer;
-};
+import { bearerAuth, oauthDiscovery, type HonoEnv } from './auth.js';
+import { createMcpServer } from './server.js';
 
 const handler = createMcpHandler(createMcpServer);
 
-/*
- * Creating the MCPAuth instance performs no I/O, so it is safe at module scope. The
- * authorization server metadata is fetched lazily within request handling — Workers do not
- * allow network calls during module initialization.
- */
-const mcpAuth = new MCPAuth({
-  resource: env.MCP_RESOURCE_IDENTIFIER,
-  authorizationServer: { issuer: env.MCP_AUTH_ISSUER, type: 'oidc' },
-});
+const app = new Hono<HonoEnv>();
 
-const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions());
+app.use('/.well-known/*', oauthDiscovery);
+app.all('/', bearerAuth, async (context) =>
+  handler.fetch(context.req.raw, { authInfo: context.get('authInfo') })
+);
 
-const worker = {
-  async fetch(request: Request): Promise<Response> {
-    /*
-     * Serve the OAuth discovery documents. The path guard keeps the (lazily fetched) metadata
-     * resolution off the request path of regular MCP traffic.
-     */
-    if (new URL(request.url).pathname.startsWith('/.well-known/')) {
-      const metadataResponse = oauthMetadataResponse(
-        request,
-        await mcpAuth.getAuthMetadataOptions()
-      );
-      if (metadataResponse) {
-        return metadataResponse;
-      }
-    }
-
-    // Require a valid Bearer token, verified by the `MCPAuth` instance, for everything else
-    const auth = await gate(request);
-    if (auth instanceof Response) {
-      return auth;
-    }
-
-    return handler.fetch(request, { authInfo: auth });
-  },
-};
-
-export default worker;
+export default app;
