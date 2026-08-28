@@ -22,6 +22,8 @@ npm install mcp-auth
 
 Or use your package manager of choice, such as `pnpm` or `yarn`.
 
+Still on MCP SDK v1 (`@modelcontextprotocol/sdk`)? Stay on the 0.2 line — `npm install mcp-auth@0.2` — and see the [v0.2.0 code and samples](https://github.com/mcp-auth/js/tree/v0.2.0).
+
 See [the documentation](https://mcp-auth.dev/docs) for the full guide.
 
 ## Join the discussion

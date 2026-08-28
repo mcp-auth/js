@@ -19,6 +19,8 @@ npm install mcp-auth @modelcontextprotocol/server
 
 `@modelcontextprotocol/server` v2 is a peer dependency. Node.js >= 20; ESM only.
 
+Still on MCP SDK v1 (`@modelcontextprotocol/sdk`)? Stay on the 0.2 line — `npm install mcp-auth@0.2` — and see the [v0.2.0 code and samples](https://github.com/mcp-auth/js/tree/v0.2.0).
+
 ## Usage
 
 ### Fetch-native runtimes (Cloudflare Workers, Deno, Bun, Node.js)
