@@ -60,16 +60,16 @@ export type MCPAuthConfig = {
   /**
    * The expected `aud` (audience) claim of access tokens. Defaults to {@link resource}.
    *
-   * Set to `false` to disable audience validation, for providers that do not include an `aud`
-   * claim in their access tokens. Only do this when you understand the implications: without
-   * audience validation, a token issued for a different resource of the same authorization
-   * server will be accepted by this MCP server.
+   * Audience validation is always performed and cannot be disabled: the MCP authorization
+   * specification requires access tokens to be bound to the resource they are issued for
+   * (RFC 8707), and accepting unbound tokens would let a token issued for a different resource
+   * of the same authorization server be replayed against this MCP server.
    */
-  audience?: string | false;
+  audience?: string;
   /**
    * Per-call options passed to the underlying `jose.jwtVerify` function, e.g. `clockTolerance`
-   * or `requiredClaims`. The `issuer` option (and the `audience` option, unless
-   * {@link audience} is `false`) is always set by mcp-auth and cannot be overridden here.
+   * or `requiredClaims`. The `issuer` and `audience` options are always set by mcp-auth and
+   * cannot be overridden here.
    *
    * @see {@link JWTVerifyOptions}
    */
@@ -260,11 +260,8 @@ export class MCPAuth implements OAuthTokenVerifier {
       assertValidUrl(serviceDocumentationUrl, 'serviceDocumentationUrl');
     }
 
-    if (audience !== undefined && audience !== false && !audience) {
-      throw new MCPAuthConfigError(
-        'invalid_config',
-        'The `audience` must be a non-empty string, or `false` to disable audience validation.'
-      );
+    if (audience !== undefined && !audience) {
+      throw new MCPAuthConfigError('invalid_config', 'The `audience` must be a non-empty string.');
     }
 
     this.#authServer = new AuthServerContext(authorizationServer, config.remoteJwkSet);
@@ -329,8 +326,9 @@ export class MCPAuth implements OAuthTokenVerifier {
    * 1. Decodes the token (without verifying) and rejects it unless its `iss` claim matches the
    *    trusted issuer — before any metadata or JWKS request is made.
    * 2. Resolves the authorization server metadata and JWK Set (both cached across calls).
-   * 3. Verifies the token signature, `iss`, and `aud` (unless {@link MCPAuthConfig.audience} is
-   *    `false`) claims, plus standard time claims, via `jose.jwtVerify`.
+   * 3. Verifies the token signature and the `iss` and `aud` claims (against
+   *    {@link MCPAuthConfig.audience}, defaulting to the `resource` identifier), plus standard
+   *    time claims, via `jose.jwtVerify`.
    * 4. Requires a non-empty `sub` claim (per RFC 9068) and maps the payload to
    *    {@link McpAuthInfo}: `clientId` from `client_id` (falling back to `azp`), `scopes` from
    *    `scope` (space-separated) or `scopes` (array), and `expiresAt` from `exp`.
@@ -405,7 +403,7 @@ export class MCPAuth implements OAuthTokenVerifier {
       const { payload } = await jwtVerify(token, jwks, {
         ...jwtVerifyOptions,
         issuer,
-        ...(audience === false ? {} : { audience }),
+        audience,
       });
       return payload;
     } catch (error) {

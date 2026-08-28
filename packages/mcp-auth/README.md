@@ -108,7 +108,7 @@ See [the documentation](https://mcp-auth.dev) for the full guide, and the [sampl
 ## Configuration highlights
 
 - `authorizationServer` accepts a discovery config (`{ issuer, type }`, metadata fetched lazily and cached — safe for edge runtimes where module-init network calls are not allowed) or a resolved config with metadata (hardcoded or pre-fetched via `fetchServerConfig()`).
-- Audience (`aud`) validation is on by default, expecting your `resource` identifier. Set `audience` to a custom string, or to `false` for providers that do not include an `aud` claim in access tokens.
+- Audience (`aud`) validation is always on, expecting your `resource` identifier (set `audience` when your provider mints a different audience value). The MCP authorization specification requires access tokens to be bound to the resource they are issued for (RFC 8707), so tokens without a matching `aud` claim are rejected.
 - `jwtVerify` / `remoteJwkSet` pass options through to [jose](https://github.com/panva/jose) for advanced tuning (clock tolerance, JWKS cache ages, etc.).
 - Verified tokens are surfaced as `McpAuthInfo` — the SDK's `AuthInfo` plus guaranteed `issuer`, `subject`, and the full `claims` payload.
 

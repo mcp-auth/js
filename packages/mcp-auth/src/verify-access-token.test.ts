@@ -239,7 +239,7 @@ describe('MCPAuth verifyAccessToken (audience validation)', () => {
     await expectOAuthError(mcpAuth.verifyAccessToken(token), 'ERR_JWT_CLAIM_VALIDATION_FAILED');
   });
 
-  it('should reject a token without an `aud` claim by default', async () => {
+  it('should reject a token without an `aud` claim', async () => {
     mockJwks();
     const mcpAuth = createMcpAuth();
     const token = await createToken(
@@ -248,6 +248,17 @@ describe('MCPAuth verifyAccessToken (audience validation)', () => {
     );
 
     await expectOAuthError(mcpAuth.verifyAccessToken(token), 'ERR_JWT_CLAIM_VALIDATION_FAILED');
+  });
+
+  it('should accept a token whose `aud` array contains the resource', async () => {
+    mockJwks();
+    const mcpAuth = createMcpAuth();
+    const token = await createToken(
+      { iss: issuer, sub: 'user-1', aud: [resource, 'https://another.example.com'] },
+      { expiresAt: oneHourFromNow() }
+    );
+
+    await expect(mcpAuth.verifyAccessToken(token)).resolves.toHaveProperty('subject', 'user-1');
   });
 
   it('should validate against a custom `audience` when configured', async () => {
@@ -271,15 +282,19 @@ describe('MCPAuth verifyAccessToken (audience validation)', () => {
     );
   });
 
-  it('should accept a token without an `aud` claim when `audience` is `false`', async () => {
+  it('should not allow disabling audience validation via `jwtVerify` overrides', async () => {
     mockJwks();
-    const mcpAuth = createMcpAuth({ audience: false });
+    /*
+     * Audience validation is always on: the `audience` option set through the jose overrides is
+     * ignored in favor of the configured (or default) audience.
+     */
+    const mcpAuth = createMcpAuth({ jwtVerify: { audience: 'https://evil.example.com' } });
     const token = await createToken(
-      { iss: issuer, sub: 'user-1' },
+      { iss: issuer, sub: 'user-1', aud: 'https://evil.example.com' },
       { expiresAt: oneHourFromNow() }
     );
 
-    await expect(mcpAuth.verifyAccessToken(token)).resolves.toHaveProperty('subject', 'user-1');
+    await expectOAuthError(mcpAuth.verifyAccessToken(token), 'ERR_JWT_CLAIM_VALIDATION_FAILED');
   });
 });
 
