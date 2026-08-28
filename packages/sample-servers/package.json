@@ -25,7 +25,9 @@
     "node": "^20.19.0 || ^22.0.0 || ^23.0.0 || ^24.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.3",
+    "@modelcontextprotocol/express": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "dotenv": "^16.5.0",
     "express": "5.0.1",
     "mcp-auth": "workspace:^",

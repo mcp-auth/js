@@ -1,7 +1,8 @@
 import nock from 'nock';
-import { describe, expect, it, afterEach } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { fetchServerConfig, fetchServerConfigByWellKnownUrl } from './fetch-server-config.js';
+import { matchError } from './test-utils.js';
 
 afterEach(() => {
   nock.cleanAll();
@@ -46,19 +47,16 @@ describe('fetchServerConfigByWellKnownUrl', () => {
     expect(wellKnown.isDone()).toBe(true);
   });
 
-  it('throw an error if the metadata is malformed', async () => {
+  it('should throw an error if the metadata is malformed', async () => {
     const wellKnown = nock(sampleIssuer)
       .get('/.well-known/oauth-authorization-server')
       .reply(200, sampleResponse);
 
     await expect(
-      fetchServerConfigByWellKnownUrl(sampleWellKnownUrl, {
-        type: 'oauth',
-      })
+      fetchServerConfigByWellKnownUrl(sampleWellKnownUrl, { type: 'oauth' })
     ).rejects.toThrowErrorMatchingInlineSnapshot(
       '[MCPAuthAuthServerError: The server metadata is invalid or malformed.]'
     );
-
     expect(wellKnown.isDone()).toBe(true);
   });
 
@@ -75,9 +73,9 @@ describe('fetchServerConfigByWellKnownUrl', () => {
       type: 'oauth',
       metadata: {
         issuer: sampleIssuer,
-        authorizationEndpoint: 'https://example.com/oauth/authorize',
-        tokenEndpoint: 'https://example.com/oauth/token',
-        responseTypesSupported: ['code'],
+        authorization_endpoint: 'https://example.com/oauth/authorize',
+        token_endpoint: 'https://example.com/oauth/token',
+        response_types_supported: ['code'],
       },
     });
     expect(wellKnown.isDone()).toBe(true);
@@ -95,16 +93,14 @@ describe('fetchServerConfig (OAuth)', () => {
   it('should fetch server config using the well-known URL for OAuth', async () => {
     const wellKnown = nock('https://example.com')
       .get('/.well-known/oauth-authorization-server')
-      .reply(200, { ...sampleResponse, issuer: 'https://example.com/' });
+      .reply(200, { ...sampleResponse, issuer: 'https://example.com' });
     const config = await fetchServerConfig('https://example.com', { type: 'oauth' });
+
     expect(config).toEqual({
       type: 'oauth',
       metadata: {
-        issuer: 'https://example.com/',
-        authorizationEndpoint: 'https://example.com/oauth/authorize',
-        tokenEndpoint: 'https://example.com/oauth/token',
-        responseTypesSupported: ['code'],
-        scopesSupported: ['scope1', 'scope2', 'scope3'],
+        ...sampleResponse,
+        issuer: 'https://example.com',
       },
     });
     expect(wellKnown.isDone()).toBe(true);
@@ -115,16 +111,25 @@ describe('fetchServerConfig (OAuth)', () => {
       .get('/.well-known/oauth-authorization-server/path')
       .reply(200, { ...sampleResponse, issuer: 'https://example.com/path' });
     const config = await fetchServerConfig('https://example.com/path', { type: 'oauth' });
+
     expect(config).toEqual({
       type: 'oauth',
       metadata: {
+        ...sampleResponse,
         issuer: 'https://example.com/path',
-        authorizationEndpoint: 'https://example.com/oauth/authorize',
-        tokenEndpoint: 'https://example.com/oauth/token',
-        responseTypesSupported: ['code'],
-        scopesSupported: ['scope1', 'scope2', 'scope3'],
       },
     });
+    expect(wellKnown.isDone()).toBe(true);
+  });
+
+  it('should throw an error if the metadata issuer does not match the expected issuer', async () => {
+    const wellKnown = nock('https://example.com')
+      .get('/.well-known/oauth-authorization-server')
+      .reply(200, { ...sampleResponse, issuer: 'https://another.example.com' });
+
+    await expect(fetchServerConfig('https://example.com', { type: 'oauth' })).rejects.toThrowError(
+      matchError('MCPAuthAuthServerError', 'invalid_server_metadata')
+    );
     expect(wellKnown.isDone()).toBe(true);
   });
 });
@@ -134,21 +139,22 @@ describe('fetchServerConfig (OIDC)', () => {
     const wellKnown = nock('https://example.com')
       .get('/.well-known/openid-configuration')
       .reply(200, {
-        issuer: 'https://example.com/',
+        issuer: 'https://example.com',
         authorization_endpoint: 'https://example.com/authorize',
         token_endpoint: 'https://example.com/token',
         response_types_supported: ['code'],
         scopes_supported: ['openid', 'profile', 'email'],
       });
     const config = await fetchServerConfig('https://example.com', { type: 'oidc' });
+
     expect(config).toEqual({
       type: 'oidc',
       metadata: {
-        issuer: 'https://example.com/',
-        authorizationEndpoint: 'https://example.com/authorize',
-        tokenEndpoint: 'https://example.com/token',
-        responseTypesSupported: ['code'],
-        scopesSupported: ['openid', 'profile', 'email'],
+        issuer: 'https://example.com',
+        authorization_endpoint: 'https://example.com/authorize',
+        token_endpoint: 'https://example.com/token',
+        response_types_supported: ['code'],
+        scopes_supported: ['openid', 'profile', 'email'],
       },
     });
     expect(wellKnown.isDone()).toBe(true);
@@ -164,13 +170,14 @@ describe('fetchServerConfig (OIDC)', () => {
         response_types_supported: ['code'],
       });
     const config = await fetchServerConfig('https://example.com/path', { type: 'oidc' });
+
     expect(config).toEqual({
       type: 'oidc',
       metadata: {
         issuer: 'https://example.com/path',
-        authorizationEndpoint: 'https://example.com/path/authorize',
-        tokenEndpoint: 'https://example.com/path/token',
-        responseTypesSupported: ['code'],
+        authorization_endpoint: 'https://example.com/path/authorize',
+        token_endpoint: 'https://example.com/path/token',
+        response_types_supported: ['code'],
       },
     });
     expect(wellKnown.isDone()).toBe(true);
@@ -180,6 +187,7 @@ describe('fetchServerConfig (OIDC)', () => {
     const wellKnown = nock('https://example.com')
       .get('/.well-known/openid-configuration')
       .reply(500, { error: 'invalid_request', error_description: 'Invalid request parameters' });
+
     await expect(
       fetchServerConfig('https://example.com', { type: 'oidc' })
     ).rejects.toThrowErrorMatchingInlineSnapshot(

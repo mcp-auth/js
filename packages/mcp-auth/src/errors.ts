@@ -1,9 +1,10 @@
-import { cond, condObject } from '@silverhand/essentials';
-
 /**
  * Base class for all mcp-auth errors.
  *
- * It provides a standardized way to handle errors related to MCP authentication and authorization.
+ * These errors cover configuration and authorization server discovery failures. Token
+ * verification failures are intentionally NOT represented here — `MCPAuth#verifyAccessToken`
+ * throws the MCP SDK's `OAuthError` instead, because the SDK bearer-auth helpers only map
+ * `OAuthError` to proper `401` challenge responses (anything else becomes a `500`).
  */
 export class MCPAuthError extends Error {
   name = 'MCPAuthError';
@@ -20,24 +21,11 @@ export class MCPAuthError extends Error {
   ) {
     super(message);
   }
-
-  /**
-   * Converts the error to a HTTP response friendly JSON format.
-   *
-   * @param showCause Whether to include the cause of the error in the JSON response.
-   * Defaults to `false`.
-   */
-  toJson(showCause = false): Record<string, unknown> {
-    return condObject({
-      error: this.code,
-      errorDescription: this.message,
-      cause: cond(showCause && this.cause),
-    });
-  }
 }
 
 /**
- * Error thrown when there is a configuration issue with mcp-auth.
+ * Error thrown when there is a configuration issue with mcp-auth, such as an invalid resource
+ * identifier or a failed metadata fetch.
  */
 export class MCPAuthConfigError extends MCPAuthError {
   name = 'MCPAuthConfigError';
@@ -57,7 +45,8 @@ export const authServerErrorDescription: Readonly<Record<AuthServerErrorCode, st
   });
 
 /**
- * Error thrown when there is an issue with the remote authorization server.
+ * Error thrown when there is an issue with the remote authorization server, such as invalid
+ * metadata or a configuration that does not satisfy the MCP authorization specification.
  */
 export class MCPAuthAuthServerError extends MCPAuthError {
   name = 'MCPAuthAuthServerError';
@@ -69,84 +58,6 @@ export class MCPAuthAuthServerError extends MCPAuthError {
     super(
       code,
       authServerErrorDescription[code] || 'An error occurred with the authorization server.'
-    );
-  }
-}
-
-export type BearerAuthErrorCode =
-  | 'missing_auth_header'
-  | 'invalid_auth_header_format'
-  | 'missing_bearer_token'
-  | 'invalid_issuer'
-  | 'invalid_audience'
-  | 'missing_required_scopes'
-  | 'invalid_token';
-
-export const bearerAuthErrorDescription: Readonly<Record<BearerAuthErrorCode, string>> =
-  Object.freeze({
-    missing_auth_header: 'Missing `Authorization` header. Please provide a valid bearer token.',
-    invalid_auth_header_format: 'Invalid `Authorization` header format. Expected "Bearer <token>".',
-    missing_bearer_token:
-      'Missing bearer token in `Authorization` header. Please provide a valid token.',
-    invalid_issuer: 'The token issuer does not match the expected issuer.',
-    invalid_audience: 'The token audience does not match the expected audience.',
-    missing_required_scopes: 'The token does not contain the necessary scopes for this request.',
-    invalid_token: 'The provided token is not valid or has expired.',
-  });
-
-export type MCPAuthBearerAuthErrorDetails = {
-  cause?: unknown;
-  uri?: URL;
-  missingScopes?: string[];
-  expected?: unknown;
-  actual?: unknown;
-};
-
-/**
- * Error thrown when there is an issue when authenticating with Bearer tokens.
- */
-export class MCPAuthBearerAuthError extends MCPAuthError {
-  name = 'MCPAuthBearerAuthError';
-
-  constructor(
-    public readonly code: BearerAuthErrorCode,
-    public readonly cause?: MCPAuthBearerAuthErrorDetails
-  ) {
-    super(code, bearerAuthErrorDescription[code] || 'An error occurred with the Bearer auth.');
-  }
-
-  override toJson(showCause = false): Record<string, unknown> {
-    // Matches the OAuth 2.0 error response format at best effort
-    return condObject({
-      ...super.toJson(showCause),
-      errorUri: this.cause?.uri?.href,
-      missingScopes: this.cause?.missingScopes,
-    });
-  }
-}
-
-export type MCPAuthTokenVerificationErrorCode = 'invalid_token' | 'token_verification_failed';
-
-export const tokenVerificationErrorDescription: Readonly<
-  Record<MCPAuthTokenVerificationErrorCode, string>
-> = Object.freeze({
-  invalid_token: 'The provided token is invalid or malformed.',
-  token_verification_failed: 'Token verification failed due to an error.',
-});
-
-/**
- * Error thrown when there is an issue when verifying tokens.
- */
-export class MCPAuthTokenVerificationError extends MCPAuthError {
-  name = 'MCPAuthTokenVerificationError';
-
-  constructor(
-    public readonly code: MCPAuthTokenVerificationErrorCode,
-    public readonly cause?: unknown
-  ) {
-    super(
-      code,
-      tokenVerificationErrorDescription[code] || 'An error occurred while verifying the token.'
     );
   }
 }
