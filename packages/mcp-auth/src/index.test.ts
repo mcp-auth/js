@@ -1,157 +1,95 @@
-import { describe, expect, it, vi } from 'vitest';
+import { bearerAuthChallengeResponse, verifyBearerToken } from '@modelcontextprotocol/server';
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import nock from 'nock';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import * as authorizationServerHandler from './auth/authorization-server-handler.js';
-import * as resourceServerHandler from './auth/resource-server-handler.js';
-import { type AuthServerConfig, MCPAuth, MCPAuthAuthServerError } from './index.js';
-import { type ResourceServerConfig } from './types/resource-server.js';
+import {
+  fetchServerConfig,
+  fetchServerConfigByWellKnownUrl,
+  getAuthInfo,
+  isMcpAuthInfo,
+  MCPAuth,
+  MCPAuthAuthServerError,
+  MCPAuthConfigError,
+  MCPAuthError,
+} from './index.js';
 
-const validServerConfig: AuthServerConfig = {
-  type: 'oauth',
-  metadata: {
-    issuer: 'https://example.com',
-    authorizationEndpoint: 'https://example.com/oauth/authorize',
-    tokenEndpoint: 'https://example.com/oauth/token',
-    responseTypesSupported: ['code'],
-    grantTypesSupported: ['authorization_code'],
-    codeChallengeMethodsSupported: ['S256'],
-  },
-};
-
-const validResourceConfig: ResourceServerConfig = {
-  metadata: {
-    resource: 'https://api.example.com',
-    authorizationServers: [validServerConfig],
-  },
-};
-
-describe('MCPAuth class (init)', () => {
-  it('should throw an error if both `server` and `protectedResources` are not provided', () => {
-    const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
-      cause: 'No authorization server or protected resource metadata is provided.',
-    });
-    // @ts-expect-error
-    expect(() => new MCPAuth({})).toThrowError(expectedError);
-  });
-
-  it('should instantiate a new instance of `AuthorizationServerHandler` if `server` is provided', () => {
-    const authServerHandlerConstructorSpy = vi
-      .spyOn(authorizationServerHandler, 'AuthorizationServerHandler')
-      .mockImplementationOnce(vi.fn());
-    const _ = new MCPAuth({ server: validServerConfig });
-    expect(authServerHandlerConstructorSpy).toHaveBeenCalledWith({ server: validServerConfig });
-    authServerHandlerConstructorSpy.mockRestore();
-  });
-
-  it('should instantiate a new instance of `ResourceServerHandler` if `protectedResources` is provided', () => {
-    const resourceServerHandlerConstructorSpy = vi
-      .spyOn(resourceServerHandler, 'ResourceServerHandler')
-      .mockImplementationOnce(vi.fn());
-    const _ = new MCPAuth({ protectedResources: validResourceConfig });
-    expect(resourceServerHandlerConstructorSpy).toHaveBeenCalledWith({
-      protectedResources: validResourceConfig,
-    });
-    resourceServerHandlerConstructorSpy.mockRestore();
+describe('public API surface', () => {
+  it('should export the documented API', () => {
+    expect(MCPAuth).toBeTypeOf('function');
+    expect(getAuthInfo).toBeTypeOf('function');
+    expect(isMcpAuthInfo).toBeTypeOf('function');
+    expect(fetchServerConfig).toBeTypeOf('function');
+    expect(fetchServerConfigByWellKnownUrl).toBeTypeOf('function');
+    expect(MCPAuthError).toBeTypeOf('function');
+    expect(MCPAuthConfigError).toBeTypeOf('function');
+    expect(MCPAuthAuthServerError).toBeTypeOf('function');
   });
 });
 
-describe('MCPAuth class (bearerAuth)', () => {
+describe('integration with the MCP SDK bearer-auth helpers', () => {
+  const issuer = 'https://auth.example.com';
+  const resource = 'https://api.example.com/mcp';
+
   const metadata = Object.freeze({
-    issuer: 'https://example.com',
-    authorizationEndpoint: 'https://example.com/oauth/authorize',
-    tokenEndpoint: 'https://example.com/oauth/token',
-    responseTypesSupported: ['code'],
-    grantTypesSupported: ['authorization_code'],
-    codeChallengeMethodsSupported: ['S256'],
+    issuer,
+    authorization_endpoint: `${issuer}/authorize`,
+    token_endpoint: `${issuer}/token`,
+    jwks_uri: `${issuer}/jwks`,
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code'],
+    code_challenge_methods_supported: ['S256'],
+    registration_endpoint: `${issuer}/register`,
   });
 
-  it('should throw an error if no verification function is provided', () => {
-    const auth = new MCPAuth({ server: { type: 'oauth', metadata } });
-    // @ts-expect-error
-    expect(() => auth.bearerAuth()).toThrowErrorMatchingInlineSnapshot(
-      '[TypeError: `verifyAccessToken` must be a function that takes a token and returns an `AuthInfo` object.]'
+  afterEach(() => {
+    nock.cleanAll();
+  });
+
+  it('should verify a Bearer token end-to-end and refuse an invalid one with a 401 challenge', async () => {
+    const { privateKey, publicKey } = await generateKeyPair('ES256');
+    nock(issuer)
+      .get('/jwks')
+      .reply(200, { keys: [await exportJWK(publicKey)] });
+
+    const mcpAuth = new MCPAuth({
+      protectedResourceMetadata: {
+        resource,
+        authorizationServer: { type: 'oidc', metadata },
+      },
+    });
+
+    const token = await new SignJWT({ iss: issuer, sub: 'user-1', aud: resource, scope: 'read' })
+      .setProtectedHeader({ alg: 'ES256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(privateKey);
+
+    const authInfo = await verifyBearerToken(
+      `Bearer ${token}`,
+      mcpAuth.getBearerAuthOptions({ requiredScopes: ['read'] })
     );
-  });
+    expect(isMcpAuthInfo(authInfo)).toBe(true);
+    expect(authInfo).toMatchObject({ clientId: '', scopes: ['read'] });
 
-  it('should create a bearer auth handler with JWT verification', () => {
-    const auth = new MCPAuth({
-      server: { type: 'oauth', metadata: { ...metadata, jwksUri: 'https://example.com/jwks' } },
-    });
-    const handler = auth.bearerAuth('jwt');
-    expect(handler).toBeInstanceOf(Function);
-    expect(handler.name).toBe('bearerAuthHandler');
-  });
-
-  it('should create a bearer auth handler with custom verification function', () => {
-    const auth = new MCPAuth({ server: { type: 'oauth', metadata } });
-    const verifyAccessToken = vi.fn().mockResolvedValue({ scopes: ['read'] });
-    const handler = auth.bearerAuth(verifyAccessToken);
-    expect(handler).toBeInstanceOf(Function);
-    expect(handler.name).toBe('bearerAuthHandler');
-  });
-
-  it('should create a bearer auth handler with JWT and resource in `resource server` mode', () => {
-    const auth = new MCPAuth({
-      protectedResources: validResourceConfig,
-    });
-    const handler = auth.bearerAuth('jwt', { resource: validResourceConfig.metadata.resource });
-    expect(handler).toBeInstanceOf(Function);
-    expect(handler.name).toBe('bearerAuthHandler');
-  });
-
-  it('should throw an error when resource is not specified in `resource server` mode', () => {
-    const auth = new MCPAuth({
-      protectedResources: validResourceConfig,
+    /*
+     * The SDK maps the `OAuthError` thrown by `verifyAccessToken` to a `401` response with a
+     * `WWW-Authenticate` challenge pointing at the Protected Resource Metadata.
+     */
+    const error = await verifyBearerToken('Bearer invalid-token', { verifier: mcpAuth }).then(
+      () => {
+        throw new Error('Expected the promise to reject.');
+      },
+      (error: unknown) => error
+    );
+    const response = bearerAuthChallengeResponse(error, {
+      resourceMetadataUrl: mcpAuth.resourceMetadataUrl,
     });
 
-    const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
-      cause:
-        'A `resource` must be specified in the `bearerAuth` configuration when using a `protectedResources` configuration.',
-    });
-
-    // No resource in the bearerAuth config
-    expect(() => auth.bearerAuth('jwt')).toThrowError(expectedError);
-  });
-});
-
-describe('MCPAuth class (delegatedRouter)', () => {
-  it('should throw MCPAuthServerError if called in resource server mode', () => {
-    const auth = new MCPAuth({ protectedResources: validResourceConfig });
-    const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
-      cause: '`delegatedRouter` is not available in `resource server` mode.',
-    });
-    expect(() => auth.delegatedRouter()).toThrow(expectedError);
-  });
-
-  it('should call `createMetadataRouter` method of the `AuthorizationServerHandler` in authorization server mode', () => {
-    const delegatedRouterSpy = vi
-      .spyOn(
-        authorizationServerHandler.AuthorizationServerHandler.prototype,
-        'createMetadataRouter'
-      )
-      .mockImplementationOnce(vi.fn());
-    const auth = new MCPAuth({ server: validServerConfig });
-    auth.delegatedRouter();
-    expect(delegatedRouterSpy).toHaveBeenCalled();
-    delegatedRouterSpy.mockRestore();
-  });
-});
-
-describe('MCPAuth class (protectedResourceMetadataRouter)', () => {
-  it('should throw MCPAuthServerError if called in authorization server mode', () => {
-    const auth = new MCPAuth({ server: validServerConfig });
-    const expectedError = new MCPAuthAuthServerError('invalid_server_config', {
-      cause: '`protectedResourceMetadataRouter` is not available in `authorization server` mode.',
-    });
-    expect(() => auth.protectedResourceMetadataRouter()).toThrow(expectedError);
-  });
-
-  it('should call `createMetadataRouter` method of the `ResourceServerHandler` in resource server mode', () => {
-    const protectedResourceMetadataRouterSpy = vi
-      .spyOn(resourceServerHandler.ResourceServerHandler.prototype, 'createMetadataRouter')
-      .mockImplementationOnce(vi.fn());
-    const auth = new MCPAuth({ protectedResources: validResourceConfig });
-    auth.protectedResourceMetadataRouter();
-    expect(protectedResourceMetadataRouterSpy).toHaveBeenCalled();
-    protectedResourceMetadataRouterSpy.mockRestore();
+    expect(response.status).toBe(401);
+    expect(response.headers.get('WWW-Authenticate')).toContain('Bearer error="invalid_token"');
+    expect(response.headers.get('WWW-Authenticate')).toContain(
+      'resource_metadata="https://api.example.com/.well-known/oauth-protected-resource/mcp"'
+    );
   });
 });

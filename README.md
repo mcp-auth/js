@@ -6,7 +6,9 @@
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/mcp-auth)](https://bundlephobia.com/package/mcp-auth)
 [![License](https://img.shields.io/npm/l/mcp-auth)](https://github.com/mcp-auth/js/blob/master/LICENSE)
 
-The MCP spec [requires OAuth 2.1 and other RFCs](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization) for auth. Instead of spending weeks on them, use MCP Auth to connect to an trusted provider with a few lines of code.
+The MCP spec [requires OAuth 2.1 and other RFCs](https://modelcontextprotocol.io/specification/latest/basic/authorization) for auth. Instead of spending weeks on them, use MCP Auth to connect to a trusted provider with a few lines of code.
+
+mcp-auth targets the latest MCP specification and the MCP TypeScript SDK v2, implementing the spec's authorization requirements — RFC 9728 Protected Resource Metadata and RFC 8707 audience-bound token validation — for any OAuth 2.0 / OpenID Connect provider.
 
 ## Get started
 
@@ -21,6 +23,8 @@ npm install mcp-auth
 ```
 
 Or use your package manager of choice, such as `pnpm` or `yarn`.
+
+Still on MCP SDK v1 (`@modelcontextprotocol/sdk`)? Stay on the 0.2 line — `npm install mcp-auth@0.2` — and see the [v0.2.0 code and samples](https://github.com/mcp-auth/js/tree/v0.2.0).
 
 See [the documentation](https://mcp-auth.dev/docs) for the full guide.
 

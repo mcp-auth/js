@@ -1,0 +1,6 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mcp-auth-sample-whoami",
+  "main": "src/whoami/index.ts",
+  "compatibility_date": "2026-08-01"
+}

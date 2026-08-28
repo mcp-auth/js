@@ -1,53 +1,58 @@
 # MCP Auth sample servers
 
-This package contains sample servers that demonstrate how to use the MCP Auth Node.js SDK in various scenarios.
+Sample MCP servers demonstrating [mcp-auth](https://github.com/mcp-auth/js/tree/master/packages/mcp-auth) with the fetch-native MCP TypeScript SDK v2, built as Cloudflare Workers with [Hono](https://hono.dev) and runnable locally with `wrangler dev` — no Cloudflare account needed for local development.
+
+Each sample separates the MCP server from the auth wiring, so the two concerns can be read (and taught) independently:
+
+```
+src/<sample>/
+  server.ts   The MCP server definition: tools reading the verified identity via `getAuthInfo`
+  auth.ts     The mcp-auth wiring: the `MCPAuth` instance and two Hono middlewares
+              (`oauthDiscovery` for the well-known documents, `bearerAuth` for token verification)
+  index.ts    The Hono app composing them
+```
 
 See [the documentation](https://mcp-auth.dev/docs) for the full guide.
 
+## Samples
+
+### WhoAmI
+
+The minimal wiring: verify JWT access tokens with `MCPAuth`, serve the OAuth discovery documents, and read the verified identity in a tool with `getAuthInfo`. It provides a single tool:
+
+- `whoami`: Returns the authenticated user's token claims
+
+### WhoAmI on Express (Node.js)
+
+The same WhoAmI server on Node.js with Express — `src/whoami-express` reuses the Workers sample's `server.ts` verbatim and only swaps the wiring to `@modelcontextprotocol/express` + `toNodeHandler`, showing that the MCP server definition is runtime-agnostic.
+
+### Todo manager
+
+Authorization with different permission scopes on top of the same wiring:
+
+- `create-todo`: Create a todo (requires the `create:todos` scope, enforced via `getAuthInfo`)
+- `get-todos`: List todos (the `read:todos` scope widens the listing from own todos to all todos)
+- `delete-todo`: Delete a todo (own todos, or any todo with the `delete:todos` scope)
+
 ## Get started
 
-### WhoAmI MCP server
+1. Configure the environment for local development:
 
-A simple server that demonstrates basic authentication. It provides a single tool:
+   ```bash
+   cp .dev.vars.example .dev.vars
+   ```
 
-- `whoami`: Returns the authenticated user's information
+   - `MCP_AUTH_ISSUER`: The issuer URL of your authorization server (e.g., `https://your-tenant.logto.app/oidc`)
+   - `MCP_RESOURCE_IDENTIFIER`: The resource identifier of the MCP server (`http://localhost:8787` for local development). Register it at your provider and request tokens for it — access tokens must carry it as their `aud` (audience) claim.
 
-To run the WhoAmI server:
-```bash
-# TypeScript version (with watch mode)
-pnpm dev:whoami
+2. Run a sample:
 
-# Start the built version
-pnpm start:whoami
+   ```bash
+   pnpm dev:whoami
+   # or
+   pnpm dev:todo-manager
+   ```
 
-# JavaScript version
-pnpm start:whoami:js
-```
+   The server listens on `http://localhost:8787`. For the Express sample, copy `.env.example` to `.env` instead and run `pnpm dev:whoami-express` (listens on `http://localhost:3001`). Connect to it with an MCP client (e.g. the [MCP Inspector](https://github.com/modelcontextprotocol/inspector)) and complete the OAuth flow.
 
-### Todo manager MCP server
-
-A more complex example demonstrating authentication and authorization with different permission scopes. It provides the following tools:
-
-- `create-todo`: Create a new todo (requires `create:todos` scope)
-- `get-todos`: List todos (requires `read:todos` scope for all todos)
-- `delete-todo`: Delete a todo (requires `delete:todos` scope for others' todos)
-
-To run the Todo Manager server:
-```bash
-# TypeScript version (with watch mode)
-pnpm dev:todo-manager
-
-# Start the built version
-pnpm start:todo-manager
-```
-
-## Environment variables
-
-### WhoAmI server
-
-- `MCP_AUTH_ISSUER`: The issuer URL of your authorization server (e.g., `https://your-tenant.logto.app/oidc`)
-
-### Todo manager server
-
-- `MCP_AUTH_ISSUER`: The issuer URL of your authorization server (e.g., `https://your-tenant.logto.app/oidc`)
-- `MCP_RESOURCE_IDENTIFIER`: The resource identifier for the protected resource (e.g., `https://todo.example.com/api/`). Note: The trailing slash is recommended due to an MCP SDK behavior that appends `/` when constructing resource indicators.
+To deploy to Cloudflare, set the two variables for the Worker and run `pnpm deploy:whoami` / `pnpm deploy:todo-manager`.
