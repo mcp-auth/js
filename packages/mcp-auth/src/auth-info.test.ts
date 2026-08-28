@@ -61,4 +61,19 @@ describe('getAuthInfo', () => {
       matchError('MCPAuthError', 'invalid_auth_info')
     );
   });
+
+  it('should return the auth info when the required scopes are present', () => {
+    expect(
+      getAuthInfo(createContext({ authInfo: mcpAuthInfo }), { requiredScopes: ['read'] })
+    ).toBe(mcpAuthInfo);
+  });
+
+  it('should throw if a required scope is missing', () => {
+    expect(() =>
+      getAuthInfo(createContext({ authInfo: mcpAuthInfo }), { requiredScopes: ['read', 'write'] })
+    ).toThrowError(matchError('MCPAuthError', 'missing_required_scopes'));
+    expect(() =>
+      getAuthInfo(createContext({ authInfo: mcpAuthInfo }), { requiredScopes: ['write'] })
+    ).toThrowError('insufficient_scope: the access token is missing the required scopes (write).');
+  });
 });

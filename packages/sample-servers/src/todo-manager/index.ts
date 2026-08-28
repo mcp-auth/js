@@ -26,10 +26,6 @@ if (!MCP_RESOURCE_IDENTIFIER) {
 // TodoService is a singleton since we need to share state across requests
 const todoService = new TodoService();
 
-const hasRequiredScopes = (userScopes: string[], requiredScopes: string[]): boolean => {
-  return requiredScopes.every((scope) => userScopes.includes(scope));
-};
-
 const errorResult = (message: string): CallToolResult => ({
   content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
   isError: true,
@@ -50,14 +46,11 @@ const createMcpServer = () => {
       inputSchema: z.object({ content: z.string() }),
     },
     ({ content }, context) => {
-      const { subject: userId, scopes } = getAuthInfo(context);
-
       /**
-       * Only users with 'create:todos' scope can create todos
+       * Only users with 'create:todos' scope can create todos; `getAuthInfo` throws otherwise
+       * and the SDK surfaces the error to the model as a tool error result.
        */
-      if (!hasRequiredScopes(scopes, ['create:todos'])) {
-        return errorResult('Missing required scopes');
-      }
+      const { subject: userId } = getAuthInfo(context, { requiredScopes: ['create:todos'] });
 
       const createdTodo = todoService.createTodo({ content, ownerId: userId });
 
@@ -79,7 +72,7 @@ const createMcpServer = () => {
        * If user has 'read:todos' scope, they can access all todos (todoOwnerId = undefined)
        * If user doesn't have 'read:todos' scope, they can only access their own todos (todoOwnerId = userId)
        */
-      const todoOwnerId = hasRequiredScopes(scopes, ['read:todos']) ? undefined : userId;
+      const todoOwnerId = scopes.includes('read:todos') ? undefined : userId;
 
       const todos = todoService.getAllTodos(todoOwnerId);
 
@@ -108,7 +101,7 @@ const createMcpServer = () => {
        * Users can only delete their own todos
        * Users with 'delete:todos' scope can delete any todo
        */
-      if (todo.ownerId !== userId && !hasRequiredScopes(scopes, ['delete:todos'])) {
+      if (todo.ownerId !== userId && !scopes.includes('delete:todos')) {
         return errorResult('Failed to delete todo');
       }
 

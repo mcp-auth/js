@@ -12,7 +12,12 @@
  * @see {@link MCPAuth} for complete usage examples.
  */
 
-export { getAuthInfo, isMcpAuthInfo, type McpAuthInfo } from './auth-info.js';
+export {
+  getAuthInfo,
+  isMcpAuthInfo,
+  type GetAuthInfoOptions,
+  type McpAuthInfo,
+} from './auth-info.js';
 export * from './errors.js';
 export {
   fetchServerConfig,
