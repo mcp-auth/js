@@ -77,9 +77,13 @@ export default {
 ### Express (via `@modelcontextprotocol/express`)
 
 ```ts
-import { mcpAuthMetadataRouter, requireBearerAuth } from '@modelcontextprotocol/express';
-import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
-import express from 'express';
+import {
+  createMcpExpressApp,
+  mcpAuthMetadataRouter,
+  requireBearerAuth,
+} from '@modelcontextprotocol/express';
+import { toNodeHandler } from '@modelcontextprotocol/node';
+import { createMcpHandler } from '@modelcontextprotocol/server';
 import { MCPAuth } from 'mcp-auth';
 
 const mcpAuth = new MCPAuth({
@@ -90,18 +94,21 @@ const mcpAuth = new MCPAuth({
   },
 });
 
-const app = express();
-app.use(express.json());
+// Reuses `createServer` from the fetch-native example above
+const mcpNodeHandler = toNodeHandler(createMcpHandler(createServer));
+
+const app = createMcpExpressApp();
 app.use(mcpAuthMetadataRouter(await mcpAuth.getAuthMetadataOptions()));
-app.post(
+app.all(
   '/mcp',
   requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] })),
-  async (request, response) => {
-    const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    await server.connect(transport);
-    await transport.handleRequest(request, response, request.body);
-  }
+  /*
+   * `createMcpExpressApp` applies `express.json()`, which drains the request stream, so the
+   * parsed body is passed along explicitly.
+   */
+  async (request, response) => mcpNodeHandler(request, response, request.body)
 );
+app.listen(3000);
 ```
 
 See [the documentation](https://mcp-auth.dev) for the full guide, and the [sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers) in this repository for complete runnable examples.

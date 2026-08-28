@@ -36,10 +36,10 @@ export type ServerMetadataConfig = {
   /**
    * A function to transpile the fetched metadata into the expected format. This is useful if the
    * server metadata does not conform to the standard schema or if you want to customize the
-   * transformation of the metadata.
+   * transformation of the metadata. The function may be synchronous or return a promise.
    */
   // eslint-disable-next-line @typescript-eslint/ban-types
-  transpileData?: (data: object) => Record<string, unknown>;
+  transpileData?: (data: object) => Record<string, unknown> | Promise<Record<string, unknown>>;
 };
 
 /**
@@ -73,7 +73,7 @@ export const fetchServerConfigByWellKnownUrl = async (
 
   const data: unknown = await response.json();
   const metadata = parseAuthServerMetadata(
-    typeof data === 'object' && data !== null && transpileData ? transpileData(data) : data
+    typeof data === 'object' && data !== null && transpileData ? await transpileData(data) : data
   );
 
   return { metadata, type };

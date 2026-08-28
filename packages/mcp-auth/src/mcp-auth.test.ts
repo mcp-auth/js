@@ -65,6 +65,48 @@ describe('MCPAuth constructor', () => {
     ).toThrowError(MCPAuthConfigError);
   });
 
+  it('should throw if the resource is not an HTTP(S) URL', () => {
+    /*
+     * `URL.canParse` accepts non-hierarchical URIs such as `urn:`, but the SDK helper that
+     * builds the RFC 9728 metadata URL throws a plain `TypeError` for them — reject the
+     * configuration up front instead.
+     */
+    for (const invalidResource of ['urn:example:mcp', 'ftp://api.example.com/mcp']) {
+      expect(
+        () =>
+          new MCPAuth({
+            protectedResourceMetadata: {
+              resource: invalidResource,
+              authorizationServer: { issuer, type: 'oidc' },
+            },
+          })
+      ).toThrowError(MCPAuthConfigError);
+    }
+  });
+
+  it('should throw if the resource contains a fragment component', () => {
+    expect(
+      () =>
+        new MCPAuth({
+          protectedResourceMetadata: {
+            resource: 'https://api.example.com/mcp#fragment',
+            authorizationServer: { issuer, type: 'oidc' },
+          },
+        })
+    ).toThrowError(MCPAuthConfigError);
+  });
+
+  it('should accept a resource with a query component', () => {
+    expect(
+      new MCPAuth({
+        protectedResourceMetadata: {
+          resource: 'https://api.example.com/mcp?tenant=1',
+          authorizationServer: { issuer, type: 'oidc' },
+        },
+      })
+    ).toBeInstanceOf(MCPAuth);
+  });
+
   it('should throw if the discovery issuer is missing or not a valid URL', () => {
     expect(
       () =>

@@ -137,6 +137,30 @@ const assertValidUrl = (value: string, name: string) => {
 };
 
 /**
+ * The `resource` identifier must be a hierarchical HTTP(S) URL — the SDK derives the RFC 9728
+ * metadata URL from it, which throws a plain `TypeError` for non-hierarchical URIs such as
+ * `urn:` — and must not contain a fragment component (forbidden by RFC 8707).
+ */
+const assertValidResource = (value: string) => {
+  assertValidUrl(value, 'resource');
+  const url = new URL(value);
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new MCPAuthConfigError(
+      'invalid_config',
+      `The \`resource\` (\`${value}\`) must be an HTTP(S) URL.`
+    );
+  }
+
+  if (url.hash) {
+    throw new MCPAuthConfigError(
+      'invalid_config',
+      `The \`resource\` (\`${value}\`) must not contain a fragment component (RFC 8707).`
+    );
+  }
+};
+
+/**
  * The main class of the mcp-auth library, providing the two inputs the MCP TypeScript SDK asks
  * you to bring when protecting an MCP server — one method each:
  *
@@ -203,9 +227,9 @@ const assertValidUrl = (value: string, name: string) => {
  * ### Express (via `@modelcontextprotocol/express`)
  *
  * ```ts
- * import { mcpAuthMetadataRouter, requireBearerAuth } from '@modelcontextprotocol/express';
- * import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
- * import express from 'express';
+ * import { createMcpExpressApp, mcpAuthMetadataRouter, requireBearerAuth } from '@modelcontextprotocol/express';
+ * import { toNodeHandler } from '@modelcontextprotocol/node';
+ * import { createMcpHandler } from '@modelcontextprotocol/server';
  * import { MCPAuth } from 'mcp-auth';
  *
  * const mcpAuth = new MCPAuth({
@@ -216,18 +240,19 @@ const assertValidUrl = (value: string, name: string) => {
  *   },
  * });
  *
- * const app = express();
- * app.use(express.json());
+ * // Reuses `createServer` from the fetch-native example above
+ * const mcpNodeHandler = toNodeHandler(createMcpHandler(createServer));
+ *
+ * const app = createMcpExpressApp();
  * app.use(mcpAuthMetadataRouter(await mcpAuth.getAuthMetadataOptions()));
- * app.post(
+ * app.all(
  *   '/mcp',
  *   requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] })),
- *   async (request, response) => {
- *     const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
- *     await server.connect(transport);
- *     await transport.handleRequest(request, response, request.body);
- *   }
+ *   // `createMcpExpressApp` applies `express.json()`, which drains the request stream, so the
+ *   // parsed body is passed along explicitly
+ *   async (request, response) => mcpNodeHandler(request, response, request.body)
  * );
+ * app.listen(3000);
  * ```
  */
 export class MCPAuth implements OAuthTokenVerifier {
@@ -250,7 +275,7 @@ export class MCPAuth implements OAuthTokenVerifier {
     if (!resource) {
       throw new MCPAuthConfigError('invalid_config', 'A `resource` identifier is required.');
     }
-    assertValidUrl(resource, 'resource');
+    assertValidResource(resource);
 
     if ('metadata' in authorizationServer) {
       validateResolvedMetadata(parseAuthServerMetadata(authorizationServer.metadata));

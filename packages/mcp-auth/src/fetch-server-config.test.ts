@@ -80,6 +80,19 @@ describe('fetchServerConfigByWellKnownUrl', () => {
     });
     expect(wellKnown.isDone()).toBe(true);
   });
+
+  it('should await an asynchronous `transpileData` function', async () => {
+    const wellKnown = nock(sampleIssuer)
+      .get('/.well-known/oauth-authorization-server')
+      .reply(200, sampleResponse);
+    const config = await fetchServerConfigByWellKnownUrl(sampleWellKnownUrl, {
+      type: 'oauth',
+      transpileData: async (data) => ({ ...data, response_types_supported: ['code'] }),
+    });
+
+    expect(config.metadata.response_types_supported).toEqual(['code']);
+    expect(wellKnown.isDone()).toBe(true);
+  });
 });
 
 describe('fetchServerConfig (OAuth)', () => {
