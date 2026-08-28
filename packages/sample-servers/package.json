@@ -3,7 +3,7 @@
   "name": "@mcp-auth/sample-servers",
   "version": "0.0.0",
   "author": "Silverhand Inc. <contact@silverhand.io>",
-  "description": "Sample servers for mcp-auth",
+  "description": "Sample MCP servers for mcp-auth, built as Cloudflare Workers",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -12,12 +12,11 @@
     "directory": "packages/sample-servers"
   },
   "scripts": {
-    "build": "tsc --noEmit && tsup",
-    "dev:whoami": "tsup --config tsup.whoami.dev.config.ts",
-    "start:whoami": "node dist/whoami/index.js",
-    "start:whoami:js": "node src/whoami/index.js",
-    "dev:todo-manager": "tsup --config tsup.todo-manager.dev.config.ts",
-    "start:todo-manager": "node dist/todo-manager/index.js",
+    "build": "tsc --noEmit",
+    "dev:whoami": "wrangler dev --config wrangler.whoami.jsonc",
+    "dev:todo-manager": "wrangler dev --config wrangler.todo-manager.jsonc",
+    "deploy:whoami": "wrangler deploy --config wrangler.whoami.jsonc",
+    "deploy:todo-manager": "wrangler deploy --config wrangler.todo-manager.jsonc",
     "test": "echo \"Error: no test specified\"",
     "lint": "eslint src"
   },
@@ -25,23 +24,17 @@
     "node": "^20.19.0 || ^22.0.0 || ^23.0.0 || ^24.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/express": "^2.0.0",
-    "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
-    "dotenv": "^16.5.0",
-    "express": "5.0.1",
     "mcp-auth": "workspace:^",
     "zod": "^4.3.5"
   },
   "devDependencies": {
     "@silverhand/eslint-config": "^6.0.1",
     "@silverhand/ts-config": "^6.0.0",
-    "@types/express": "^5.0.1",
-    "@types/node": "^20.17.0",
     "eslint": "^8.57.0",
     "prettier": "^3.5.3",
-    "tsup": "^8.4.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "wrangler": "^4.0.0"
   },
   "eslintConfig": {
     "extends": "@silverhand"

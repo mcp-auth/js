@@ -1,29 +1,31 @@
+/**
+ * The Todo Manager MCP server, built as a Cloudflare Worker.
+ *
+ * It demonstrates authorization with different permission scopes: per-tool required scopes via
+ * `getAuthInfo`, and scope-dependent behavior combined with resource ownership.
+ */
+
 import {
-  createMcpExpressApp,
-  mcpAuthMetadataRouter,
+  createMcpHandler,
+  McpServer,
+  oauthMetadataResponse,
   requireBearerAuth,
-} from '@modelcontextprotocol/express';
-import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
-import { McpServer, type CallToolResult } from '@modelcontextprotocol/server';
-import { configDotenv } from 'dotenv';
+  type CallToolResult,
+} from '@modelcontextprotocol/server';
 import { getAuthInfo, MCPAuth } from 'mcp-auth';
 import { z } from 'zod';
 
 import { TodoService } from './todo-service.js';
 
-configDotenv();
+type Env = {
+  MCP_AUTH_ISSUER: string;
+  MCP_RESOURCE_IDENTIFIER: string;
+};
 
-const { MCP_AUTH_ISSUER, MCP_RESOURCE_IDENTIFIER } = process.env;
-
-if (!MCP_AUTH_ISSUER) {
-  throw new Error('MCP_AUTH_ISSUER environment variable is required');
-}
-
-if (!MCP_RESOURCE_IDENTIFIER) {
-  throw new Error('MCP_RESOURCE_IDENTIFIER environment variable is required');
-}
-
-// TodoService is a singleton since we need to share state across requests
+/**
+ * TodoService is shared across requests within a Worker isolate so the sample can demonstrate
+ * state. Use a real store (KV, D1, Durable Objects) in production.
+ */
 const todoService = new TodoService();
 
 const errorResult = (message: string): CallToolResult => ({
@@ -31,8 +33,7 @@ const errorResult = (message: string): CallToolResult => ({
   isError: true,
 });
 
-// Factory function to create an MCP server instance
-// In stateless mode, each request needs its own server instance
+// The factory creates a fresh MCP server instance per request, keeping requests isolated
 const createMcpServer = () => {
   const mcpServer = new McpServer({
     name: 'Todo Manager',
@@ -98,10 +99,11 @@ const createMcpServer = () => {
       }
 
       /**
-       * Users can only delete their own todos
-       * Users with 'delete:todos' scope can delete any todo
+       * Users can delete their own todos; the 'delete:todos' scope allows deleting any todo
        */
-      if (todo.ownerId !== userId && !scopes.includes('delete:todos')) {
+      const canDelete = todo.ownerId === userId || scopes.includes('delete:todos');
+
+      if (!canDelete) {
         return errorResult('Failed to delete todo');
       }
 
@@ -124,36 +126,54 @@ const createMcpServer = () => {
   return mcpServer;
 };
 
-const mcpAuth = new MCPAuth({
-  resource: MCP_RESOURCE_IDENTIFIER,
-  authorizationServer: { issuer: MCP_AUTH_ISSUER, type: 'oidc' },
-  scopesSupported: ['create:todos', 'read:todos', 'delete:todos'],
-});
+const handler = createMcpHandler(createMcpServer);
 
-const PORT = 3001;
-const app = createMcpExpressApp();
+/* eslint-disable @silverhand/fp/no-let, @silverhand/fp/no-mutation -- lazy per-isolate singleton */
+let mcpAuth: MCPAuth | undefined;
 
-// Serve the OAuth discovery documents (`/.well-known/...`)
-app.use(mcpAuthMetadataRouter(await mcpAuth.getAuthMetadataOptions()));
+/**
+ * Configuration comes from Worker bindings (`env`), which are only available per request, so
+ * the `MCPAuth` instance is created lazily on first use. The discovery config defers the
+ * metadata fetching the same way — Workers do not allow network calls during module
+ * initialization.
+ */
+const getMcpAuth = (env: Env): MCPAuth => {
+  mcpAuth ??= new MCPAuth({
+    resource: env.MCP_RESOURCE_IDENTIFIER,
+    authorizationServer: { issuer: env.MCP_AUTH_ISSUER, type: 'oidc' },
+    scopesSupported: ['create:todos', 'read:todos', 'delete:todos'],
+  });
+  return mcpAuth;
+};
+/* eslint-enable @silverhand/fp/no-let, @silverhand/fp/no-mutation */
 
-app.post(
-  '/',
-  // Require a valid Bearer token, verified by the `MCPAuth` instance
-  requireBearerAuth(mcpAuth.getBearerAuthOptions()),
-  async (request, response) => {
-    // In stateless mode, create a new instance of transport and server for each request
-    // to ensure complete isolation. A single instance would cause request ID collisions
-    // when multiple clients connect concurrently.
-    const mcpServer = createMcpServer();
+const worker = {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const mcpAuth = getMcpAuth(env);
 
-    const transport = new NodeStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    await mcpServer.connect(transport);
-    await transport.handleRequest(request, response, request.body);
-    response.on('close', () => {
-      void transport.close();
-      void mcpServer.close();
-    });
-  }
-);
+    /*
+     * Serve the OAuth discovery documents. The path guard keeps the (lazily fetched) metadata
+     * resolution off the request path of regular MCP traffic.
+     */
+    if (new URL(request.url).pathname.startsWith('/.well-known/')) {
+      const metadataResponse = oauthMetadataResponse(
+        request,
+        await mcpAuth.getAuthMetadataOptions()
+      );
+      if (metadataResponse) {
+        return metadataResponse;
+      }
+    }
 
-app.listen(PORT);
+    // Require a valid Bearer token, verified by the `MCPAuth` instance, for everything else
+    const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions());
+    const auth = await gate(request);
+    if (auth instanceof Response) {
+      return auth;
+    }
+
+    return handler.fetch(request, { authInfo: auth });
+  },
+};
+
+export default worker;

@@ -1,0 +1,9 @@
+# Copy this file to `.dev.vars` and fill in the values for local development (`wrangler dev`).
+
+# The issuer URL of your authorization server
+MCP_AUTH_ISSUER=https://your-tenant.logto.app/oidc
+
+# The resource identifier of the MCP server. Access tokens must carry it as their `aud`
+# (audience) claim — register it at your provider (e.g. as an API resource) and request tokens
+# for it. `wrangler dev` serves on http://localhost:8787 by default.
+MCP_RESOURCE_IDENTIFIER=http://localhost:8787

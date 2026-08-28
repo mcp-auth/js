@@ -49,3 +49,7 @@ Thumbs.db
 .vercel
 .next
 *.local
+
+# Cloudflare Workers
+.dev.vars
+.wrangler

@@ -161,21 +161,27 @@ const assertValidUrl = (value: string, name: string) => {
  *   scopesSupported: ['read:notes'],
  * });
  *
- * const server = new McpServer({ name: 'Notes', version: '1.0.0' });
- * server.registerTool('whoami', { description: 'Get the current user' }, (ctx) => {
- *   const { subject, claims } = getAuthInfo(ctx);
- *   return { content: [{ type: 'text', text: JSON.stringify({ subject, claims }) }] };
- * });
+ * const createServer = () => {
+ *   const server = new McpServer({ name: 'Notes', version: '1.0.0' });
+ *   server.registerTool('whoami', { description: 'Get the current user' }, (ctx) => {
+ *     const { subject, claims } = getAuthInfo(ctx);
+ *     return { content: [{ type: 'text', text: JSON.stringify({ subject, claims }) }] };
+ *   });
+ *   return server;
+ * };
  *
- * const handler = createMcpHandler(server);
+ * const handler = createMcpHandler(createServer);
  * const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] }));
  *
  * export default {
  *   async fetch(request: Request): Promise<Response> {
- *     // Serve the OAuth discovery documents (`/.well-known/...`)
- *     const metadataResponse = oauthMetadataResponse(request, await mcpAuth.getAuthMetadataOptions());
- *     if (metadataResponse) {
- *       return metadataResponse;
+ *     // Serve the OAuth discovery documents; the path guard keeps the (lazily fetched)
+ *     // metadata resolution off the request path of regular MCP traffic
+ *     if (new URL(request.url).pathname.startsWith('/.well-known/')) {
+ *       const metadataResponse = oauthMetadataResponse(request, await mcpAuth.getAuthMetadataOptions());
+ *       if (metadataResponse) {
+ *         return metadataResponse;
+ *       }
  *     }
  *
  *     // Require a valid Bearer token for everything else
