@@ -53,3 +53,6 @@ Thumbs.db
 # Cloudflare Workers
 .dev.vars
 .wrangler
+
+# npm pack output
+*.tgz
