@@ -2,6 +2,8 @@
 
 > The MCP SDK asks you to bring two things: a token verifier and your auth metadata. mcp-auth gives you both, for any OAuth / OIDC provider.
 
+> Still on MCP SDK v1 (`@modelcontextprotocol/sdk`)? Stay on the 0.2 line — `npm install mcp-auth@0.2` — and see the [v0.2.0 code and samples](https://github.com/mcp-auth/js/tree/v0.2.0).
+
 [Docs & tutorials](https://mcp-auth.dev) · [Sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers)
 
 The MCP TypeScript SDK v2 (`@modelcontextprotocol/server`) ships the entire HTTP layer of MCP authorization itself: `requireBearerAuth`, `verifyBearerToken`, `oauthMetadataResponse`, and official framework adapters like `@modelcontextprotocol/express`. What it leaves to you is provider integration — verifying the access tokens your OAuth 2.0 / OpenID Connect provider issues, and describing that provider in your server's metadata.
@@ -20,8 +22,6 @@ npm install mcp-auth @modelcontextprotocol/server
 ```
 
 `@modelcontextprotocol/server` v2 is a peer dependency. Node.js >= 20; ESM only.
-
-Still on MCP SDK v1 (`@modelcontextprotocol/sdk`)? Stay on the 0.2 line — `npm install mcp-auth@0.2` — and see the [v0.2.0 code and samples](https://github.com/mcp-auth/js/tree/v0.2.0).
 
 ## Get started
 
