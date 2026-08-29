@@ -2,16 +2,14 @@
 
 > The MCP SDK asks you to bring two things: a token verifier and your auth metadata. mcp-auth gives you both, for any OAuth / OIDC provider.
 
-> Still on MCP SDK v1 (`@modelcontextprotocol/sdk`)? Stay on the 0.2 line — `npm install mcp-auth@0.2` — and see the [v0.2.0 code and samples](https://github.com/mcp-auth/js/tree/v0.2.0).
-
 [Docs & tutorials](https://mcp-auth.dev) · [Sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers)
 
-The MCP TypeScript SDK v2 (`@modelcontextprotocol/server`) ships the entire HTTP layer of MCP authorization itself: `requireBearerAuth`, `verifyBearerToken`, `oauthMetadataResponse`, and official framework adapters like `@modelcontextprotocol/express`. What it leaves to you is provider integration — verifying the access tokens your OAuth 2.0 / OpenID Connect provider issues, and describing that provider in your server's metadata.
+The MCP TypeScript SDK v2 (`@modelcontextprotocol/server`) ships the entire HTTP layer of MCP authorization itself: `requireBearerAuth`, `verifyBearerToken`, `oauthMetadataResponse`, and official framework adapters like `@modelcontextprotocol/express`. What it leaves to you is provider integration: verifying the access tokens your OAuth 2.0 / OpenID Connect provider issues, and describing that provider in your server's metadata.
 
 That is exactly what mcp-auth does:
 
-1. **A token verifier** — `MCPAuth` implements the SDK's `OAuthTokenVerifier` interface. It discovers your provider's metadata, fetches its JWKS, and verifies JWT access tokens (signature, issuer, audience, expiration, and the claims MCP servers need), with sensible caching throughout. `mcpAuth.getBearerAuthOptions()` bundles the verifier with the RFC 9728 metadata URL into the SDK's `BearerAuthOptions`, ready for `requireBearerAuth`.
-2. **Your auth metadata** — `mcpAuth.getAuthMetadataOptions()` returns the SDK's `AuthMetadataOptions`, ready to serve the OAuth discovery documents.
+1. **A token verifier**: `MCPAuth` implements the SDK's `OAuthTokenVerifier` interface. It discovers your provider's metadata, fetches its JWKS, and verifies JWT access tokens (signature, issuer, audience, expiration, and the claims MCP servers need), with sensible caching throughout. `mcpAuth.getBearerAuthOptions()` bundles the verifier with the RFC 9728 metadata URL into the SDK's `BearerAuthOptions`, ready for `requireBearerAuth`.
+2. **Your auth metadata**: `mcpAuth.getAuthMetadataOptions()` returns the SDK's `AuthMetadataOptions`, ready to serve the OAuth discovery documents.
 
 It implements the authorization requirements of the [latest MCP specification](https://modelcontextprotocol.io/specification/latest/basic/authorization) and works with any OAuth 2.0 / OpenID Connect provider that meets them.
 
@@ -21,7 +19,7 @@ It implements the authorization requirements of the [latest MCP specification](h
 npm install mcp-auth @modelcontextprotocol/server
 ```
 
-`@modelcontextprotocol/server` v2 is a peer dependency. Node.js >= 20; ESM only.
+`@modelcontextprotocol/server` v2 is a peer dependency. Node.js >= 20; ESM only. Still on MCP SDK v1 (`@modelcontextprotocol/sdk`)? Use [`mcp-auth@0.2`](https://github.com/mcp-auth/js/tree/v0.2.0).
 
 ## Get started
 
@@ -43,7 +41,7 @@ const mcpAuth = new MCPAuth({
   },
 });
 
-// 2. Gate your MCP endpoint — signature, issuer, audience, expiration, and scopes all enforced
+// 2. Gate your MCP endpoint: signature, issuer, audience, expiration, and scopes all enforced
 const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] }));
 
 // 3. Read the verified identity in your tools with `getAuthInfo`
@@ -73,19 +71,19 @@ export default {
 };
 ```
 
-Head to [mcp-auth.dev](https://mcp-auth.dev) for tutorials and the full documentation. For complete runnable projects — `whoami` and `todo-manager` as Cloudflare Workers, plus an Express variant built with `@modelcontextprotocol/express` — see the [sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers) in this repository.
+Head to [mcp-auth.dev](https://mcp-auth.dev) for tutorials and the full documentation. The [sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers) in this repository are complete runnable projects: `whoami` and `todo-manager` as Cloudflare Workers, plus an Express variant built with `@modelcontextprotocol/express`.
 
 ## Configuration highlights
 
-- `protectedResourceMetadata` is your RFC 9728 Protected Resource Metadata declaration: everything in it is published through the SDK's metadata helpers, and the token verifier enforces what it declares — the `aud` claim must match `resource`, the `iss` claim must match the configured authorization server.
-- `authorizationServer` accepts a discovery config (`{ issuer, type }`, metadata fetched lazily and cached — safe for edge runtimes where module-init network calls are not allowed) or a resolved config with metadata (hardcoded or pre-fetched via `fetchServerConfig()`).
+- `protectedResourceMetadata` is your RFC 9728 Protected Resource Metadata declaration. Everything in it is published through the SDK's metadata helpers, and the token verifier enforces what it declares: the `aud` claim must match `resource` and the `iss` claim must match the configured authorization server.
+- `authorizationServer` accepts a discovery config (`{ issuer, type }`, metadata fetched lazily and cached, safe for edge runtimes where module-init network calls are not allowed) or a resolved config with metadata (hardcoded or pre-fetched via `fetchServerConfig()`).
 - Audience (`aud`) validation always expects your `resource` identifier and cannot be redirected or disabled: the MCP authorization specification requires access tokens to be bound to the resource they are issued for (RFC 8707), so tokens without a matching `aud` claim are rejected.
-- `jwtVerifyOptions` passes options through to [jose](https://github.com/panva/jose)'s `jwtVerify` for advanced tuning (clock tolerance, required claims, etc.); `issuer` and `audience` are excluded — they always come from the metadata declaration.
-- Verified tokens are surfaced as `McpAuthInfo` — the SDK's `AuthInfo` plus guaranteed `issuer`, `subject`, and the full `claims` payload.
+- `jwtVerifyOptions` passes options through to [jose](https://github.com/panva/jose)'s `jwtVerify` for advanced tuning (clock tolerance, required claims, etc.); `issuer` and `audience` are excluded since they always come from the metadata declaration.
+- Verified tokens are surfaced as `McpAuthInfo`, the SDK's `AuthInfo` plus guaranteed `issuer`, `subject`, and the full `claims` payload.
 
 ## Opaque access tokens
 
-`MCPAuth` verifies JWT access tokens against your provider's JWKS. Some authorization servers issue opaque access tokens instead — random strings with nothing to verify locally. The two halves of mcp-auth are decoupled, so this case is covered by bringing your own verifier: implement the SDK's `OAuthTokenVerifier` against your server's token introspection endpoint ([RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)), and keep using the metadata half — the discovery documents, the challenge URL, and `getAuthInfo()` all work unchanged.
+`MCPAuth` verifies JWT access tokens against your provider's JWKS. Some authorization servers issue opaque access tokens instead: random strings with nothing to verify locally. The two halves of mcp-auth are decoupled, so this case is covered by bringing your own verifier: implement the SDK's `OAuthTokenVerifier` against your server's token introspection endpoint ([RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)), and keep using the metadata half. The discovery documents, the challenge URL, and `getAuthInfo()` all work unchanged.
 
 ```ts
 import {
@@ -109,8 +107,8 @@ const mcpAuth = new MCPAuth({
 });
 
 const introspectionEndpoint = 'https://auth.example.com/oidc/token/introspection';
-// A confidential client registered with the authorization server (e.g. a machine-to-machine
-// app) — most servers require one to introspect tokens issued to other clients
+// Most servers require a confidential client (e.g. a machine-to-machine app) to
+// introspect tokens issued to other clients
 const clientId = 'your-m2m-client-id';
 const clientSecret = 'your-m2m-client-secret';
 
@@ -131,7 +129,7 @@ const introspectionVerifier: OAuthTokenVerifier = {
     } catch (error) {
       /*
        * A plain `Error`, not an `OAuthError`: the SDK answers 500. The token could not be
-       * verified, which is different from being invalid — a 401 would send a client with a
+       * verified, which is different from being invalid; a 401 would send a client with a
        * perfectly fine token into a pointless re-authorization.
        */
       throw new Error('Failed to reach the token introspection endpoint.', { cause: error });
@@ -143,7 +141,7 @@ const introspectionVerifier: OAuthTokenVerifier = {
 
     const data = (await response.json()) as McpAuthInfo['claims'];
 
-    // The MCP spec still requires these checks — introspection does not exempt them
+    // The MCP spec still requires these checks; introspection does not exempt them
     if (data.active !== true) {
       throw new OAuthError(OAuthErrorCode.InvalidToken, 'The token is not active.');
     }
@@ -185,7 +183,7 @@ A few things to know:
 
 - **The endpoint**: some servers advertise it as `introspection_endpoint` in their metadata, others keep it off the public discovery document entirely (e.g. an internal admin API). Configure whatever yours is.
 - **The credentials**: most servers only let authenticated confidential clients introspect tokens issued to other clients; some deployments protect the endpoint at the network level instead. Check your server's policy.
-- **The cost**: every request is an introspection round-trip. That is also the point — revoked tokens are rejected immediately. Add caching only if you accept the revocation delay.
+- **The cost**: every request is an introspection round-trip. That is also the point: revoked tokens are rejected immediately. Add caching only if you accept the revocation delay.
 
 ## Join the discussion
 
