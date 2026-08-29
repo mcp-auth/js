@@ -2,7 +2,7 @@
 
 > The MCP SDK asks you to bring two things: a token verifier and your auth metadata. mcp-auth gives you both, for any OAuth / OIDC provider.
 
-[Get started](https://mcp-auth.dev/docs) · [Sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers) · [Provider list](https://mcp-auth.dev/provider-list)
+[Docs & tutorials](https://mcp-auth.dev) · [Sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers)
 
 The MCP TypeScript SDK v2 (`@modelcontextprotocol/server`) ships the entire HTTP layer of MCP authorization itself: `requireBearerAuth`, `verifyBearerToken`, `oauthMetadataResponse`, and official framework adapters like `@modelcontextprotocol/express`. What it leaves to you is provider integration — verifying the access tokens your OAuth 2.0 / OpenID Connect provider issues, and describing that provider in your server's metadata.
 
@@ -11,7 +11,7 @@ That is exactly what mcp-auth does:
 1. **A token verifier** — `MCPAuth` implements the SDK's `OAuthTokenVerifier` interface. It discovers your provider's metadata, fetches its JWKS, and verifies JWT access tokens (signature, issuer, audience, expiration, and the claims MCP servers need), with sensible caching throughout. `mcpAuth.getBearerAuthOptions()` bundles the verifier with the RFC 9728 metadata URL into the SDK's `BearerAuthOptions`, ready for `requireBearerAuth`.
 2. **Your auth metadata** — `mcpAuth.getAuthMetadataOptions()` returns the SDK's `AuthMetadataOptions`, ready to serve the OAuth discovery documents.
 
-It implements the authorization requirements of the [latest MCP specification](https://modelcontextprotocol.io/specification/latest/basic/authorization) and works with any OAuth 2.0 / OpenID Connect provider that meets them. Check out the [MCP-compatible providers](https://mcp-auth.dev/docs/provider-list) list for real-time compatibility checks.
+It implements the authorization requirements of the [latest MCP specification](https://modelcontextprotocol.io/specification/latest/basic/authorization) and works with any OAuth 2.0 / OpenID Connect provider that meets them.
 
 ## Installation
 
@@ -23,9 +23,7 @@ npm install mcp-auth @modelcontextprotocol/server
 
 Still on MCP SDK v1 (`@modelcontextprotocol/sdk`)? Stay on the 0.2 line — `npm install mcp-auth@0.2` — and see the [v0.2.0 code and samples](https://github.com/mcp-auth/js/tree/v0.2.0).
 
-## Usage
-
-### Fetch-native runtimes (Cloudflare Workers, Deno, Bun, Node.js)
+## Get started
 
 ```ts
 import {
@@ -36,6 +34,7 @@ import {
 } from '@modelcontextprotocol/server';
 import { getAuthInfo, MCPAuth } from 'mcp-auth';
 
+// 1. Declare this MCP server and the authorization server it trusts
 const mcpAuth = new MCPAuth({
   protectedResourceMetadata: {
     resource: 'https://api.example.com/mcp',
@@ -44,78 +43,37 @@ const mcpAuth = new MCPAuth({
   },
 });
 
-const createServer = () => {
+// 2. Gate your MCP endpoint — signature, issuer, audience, expiration, and scopes all enforced
+const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] }));
+
+// 3. Read the verified identity in your tools with `getAuthInfo`
+const handler = createMcpHandler(() => {
   const server = new McpServer({ name: 'Notes', version: '1.0.0' });
   server.registerTool('whoami', { description: 'Get the current user' }, (ctx) => {
+    // Pass { requiredScopes: [...] } as the second argument for per-tool authorization
     const { subject, claims } = getAuthInfo(ctx);
     return { content: [{ type: 'text', text: JSON.stringify({ subject, claims }) }] };
   });
   return server;
-};
+});
 
-const handler = createMcpHandler(createServer);
-const gate = requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] }));
-
+// 4. Wire it up (Cloudflare Workers, Deno, Bun, Node.js)
 export default {
   async fetch(request: Request): Promise<Response> {
-    // Serve the OAuth discovery documents; the path guard keeps the (lazily fetched)
-    // metadata resolution off the request path of regular MCP traffic
     if (new URL(request.url).pathname.startsWith('/.well-known/')) {
-      const metadataResponse = oauthMetadataResponse(request, await mcpAuth.getAuthMetadataOptions());
-      if (metadataResponse) {
-        return metadataResponse;
-      }
+      // Serve the OAuth discovery documents
+      const metadata = oauthMetadataResponse(request, await mcpAuth.getAuthMetadataOptions());
+      if (metadata) return metadata;
     }
 
-    // Require a valid Bearer token for everything else
     const auth = await gate(request);
-    if (auth instanceof Response) {
-      return auth;
-    }
-
+    if (auth instanceof Response) return auth;
     return handler.fetch(request, { authInfo: auth });
   },
 };
 ```
 
-### Express (via `@modelcontextprotocol/express`)
-
-```ts
-import {
-  createMcpExpressApp,
-  mcpAuthMetadataRouter,
-  requireBearerAuth,
-} from '@modelcontextprotocol/express';
-import { toNodeHandler } from '@modelcontextprotocol/node';
-import { createMcpHandler } from '@modelcontextprotocol/server';
-import { MCPAuth } from 'mcp-auth';
-
-const mcpAuth = new MCPAuth({
-  protectedResourceMetadata: {
-    resource: 'https://api.example.com/mcp',
-    authorizationServer: { issuer: 'https://auth.example.com/oidc', type: 'oidc' },
-    scopesSupported: ['read:notes'],
-  },
-});
-
-// Reuses `createServer` from the fetch-native example above
-const mcpNodeHandler = toNodeHandler(createMcpHandler(createServer));
-
-const app = createMcpExpressApp();
-app.use(mcpAuthMetadataRouter(await mcpAuth.getAuthMetadataOptions()));
-app.all(
-  '/mcp',
-  requireBearerAuth(mcpAuth.getBearerAuthOptions({ requiredScopes: ['read:notes'] })),
-  /*
-   * `createMcpExpressApp` applies `express.json()`, which drains the request stream, so the
-   * parsed body is passed along explicitly.
-   */
-  async (request, response) => mcpNodeHandler(request, response, request.body)
-);
-app.listen(3000);
-```
-
-The fastest way to get started is the [step-by-step guide](https://mcp-auth.dev/docs). For complete runnable examples — `whoami` and `todo-manager` as Cloudflare Workers, plus an Express variant — see the [sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers) in this repository.
+Head to [mcp-auth.dev](https://mcp-auth.dev) for tutorials and the full documentation. For complete runnable projects — `whoami` and `todo-manager` as Cloudflare Workers, plus an Express variant built with `@modelcontextprotocol/express` — see the [sample servers](https://github.com/mcp-auth/js/tree/master/packages/sample-servers) in this repository.
 
 ## Configuration highlights
 
@@ -141,7 +99,7 @@ import { MCPAuth, type McpAuthInfo } from 'mcp-auth';
 const issuer = 'https://auth.example.com/oidc';
 const resource = 'https://api.example.com/mcp';
 
-// The metadata half works exactly as in the examples above
+// The metadata half works exactly as in the example above
 const mcpAuth = new MCPAuth({
   protectedResourceMetadata: {
     resource,
