@@ -23,11 +23,12 @@ jobs:
       - name: Setup Node and pnpm
         uses: silverhand-io/actions-node-pnpm-run-steps@v5
         with:
-          pnpm-version: 10.8.0
+          pnpm-version: 10.34.5
           node-version: 22
 
+      # Authenticates via OIDC trusted publishing (configured on npmjs.com for this
+      # package: repository mcp-auth/js, workflow publish.yml) — no npm token involved.
+      # Requires pnpm >= 10.20 and the `id-token: write` permission above.
       - name: Publish to npm
         working-directory: packages/mcp-auth
         run: pnpm publish --provenance --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
